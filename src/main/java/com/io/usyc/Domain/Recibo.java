@@ -1,12 +1,15 @@
 package com.io.usyc.Domain;
 
 import jakarta.persistence.*;
+import lombok.Data;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "recibo")
+@Data
 public class Recibo {
 
     @Id
