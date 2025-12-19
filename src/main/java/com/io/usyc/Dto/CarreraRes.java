@@ -9,5 +9,7 @@ public record CarreraRes(
         String nombre,
         BigDecimal montoMensual,
         BigDecimal montoInscripcion,
+        Integer duracionAnios,
+        Integer duracionMeses,
         Boolean activo
 ) {}

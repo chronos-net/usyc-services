@@ -39,6 +39,12 @@ public class CatCarrera {
     @OneToMany(mappedBy = "carrera", fetch = FetchType.LAZY)
     private List<Alumno> alumnos = new ArrayList<>();
 
+    @Column(name = "duracion_anios", nullable = false)
+    private Integer duracionAnios = 0;
+
+    @Column(name = "duracion_meses", nullable = false)
+    private Integer duracionMeses = 0;
+
     @PrePersist
     void prePersist() {
         if (creadoEn == null) creadoEn = LocalDateTime.now();

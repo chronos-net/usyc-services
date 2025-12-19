@@ -32,13 +32,21 @@ public class CarreraServiceImpl implements CarreraService {
         validarTexto(req.nombre(), "nombre");
         validarMonto(req.montoMensual(), "montoMensual");
         validarMonto(req.montoInscripcion(), "montoInscripcion");
-        if (req.escolaridadId() == null) throw new IllegalArgumentException("El campo 'escolaridadId' es obligatorio.");
+
+        if (req.escolaridadId() == null) {
+            throw new IllegalArgumentException("El campo 'escolaridadId' es obligatorio.");
+        }
 
         String carreraId = normalizarCarreraId(req.carreraId());
 
         if (carreraRepo.existsById(carreraId)) {
             throw new IllegalArgumentException("Ya existe una carrera con id: " + carreraId);
         }
+
+        // Duración (años/meses)
+        int anios = normalizarAnios(req.duracionAnios());
+        int meses = normalizarMeses(req.duracionMeses());
+        validarDuracionNoCero(anios, meses);
 
         CatEscolaridad esc = escolaridadRepo.findById(req.escolaridadId())
                 .orElseThrow(() -> new IllegalArgumentException("No existe escolaridad con id: " + req.escolaridadId()));
@@ -49,6 +57,8 @@ public class CarreraServiceImpl implements CarreraService {
         c.setNombre(req.nombre().trim());
         c.setMontoMensual(req.montoMensual());
         c.setMontoInscripcion(req.montoInscripcion());
+        c.setDuracionAnios(anios);
+        c.setDuracionMeses(meses);
         c.setActivo(req.activo() == null ? Boolean.TRUE : req.activo());
 
         return toRes(carreraRepo.save(c));
@@ -79,6 +89,17 @@ public class CarreraServiceImpl implements CarreraService {
             validarMonto(req.montoInscripcion(), "montoInscripcion");
             c.setMontoInscripcion(req.montoInscripcion());
         }
+
+        // Duración (si viene uno, validamos ambos con los valores finales)
+        if (req.duracionAnios() != null || req.duracionMeses() != null) {
+            int aniosFinal = normalizarAnios(req.duracionAnios() != null ? req.duracionAnios() : c.getDuracionAnios());
+            int mesesFinal = normalizarMeses(req.duracionMeses() != null ? req.duracionMeses() : c.getDuracionMeses());
+            validarDuracionNoCero(aniosFinal, mesesFinal);
+
+            c.setDuracionAnios(aniosFinal);
+            c.setDuracionMeses(mesesFinal);
+        }
+
         if (req.activo() != null) {
             c.setActivo(req.activo());
         }
@@ -145,6 +166,8 @@ public class CarreraServiceImpl implements CarreraService {
                 c.getNombre(),
                 c.getMontoMensual(),
                 c.getMontoInscripcion(),
+                c.getDuracionAnios(),
+                c.getDuracionMeses(),
                 c.getActivo()
         );
     }
@@ -168,5 +191,22 @@ public class CarreraServiceImpl implements CarreraService {
     private static void validarTexto(String v, String campo) {
         if (v == null || v.trim().isEmpty()) throw new IllegalArgumentException("El campo '" + campo + "' es obligatorio.");
     }
-}
 
+    private static int normalizarAnios(Integer anios) {
+        if (anios == null) return 0;
+        if (anios < 0) throw new IllegalArgumentException("La duración en años no puede ser negativa.");
+        return anios;
+    }
+
+    private static int normalizarMeses(Integer meses) {
+        if (meses == null) return 0;
+        if (meses < 0 || meses > 11) throw new IllegalArgumentException("La duración en meses debe estar entre 0 y 11.");
+        return meses;
+    }
+
+    private static void validarDuracionNoCero(int anios, int meses) {
+        if (anios == 0 && meses == 0) {
+            throw new IllegalArgumentException("La duración no puede ser 0 años y 0 meses.");
+        }
+    }
+}

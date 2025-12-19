@@ -1,11 +1,14 @@
 package com.io.usyc.Domain;
 
 import jakarta.persistence.*;
+import lombok.Data;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "alumno")
+@Data
 public class Alumno {
 
     @Id

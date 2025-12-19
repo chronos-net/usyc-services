@@ -1,9 +1,11 @@
 package com.io.usyc.Domain;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
 @Entity
 @Table(name = "alumno_folio_seq")
+@Data
 public class AlumnoFolioSeq {
 
     @EmbeddedId
