@@ -238,6 +238,8 @@ public class ReciboServiceImpl implements ReciboService {
 
         // OJO: aquí te conviene devolver también qrFileName para que el front lo use si quiere.
         // Si tu ReciboRes NO tiene qrFileName, lo puedes agregar al record.
+        var tp = r.getTipoPago();
+
         return new ReciboRes(
                 r.getId(),
                 r.getFolio(),
@@ -250,9 +252,13 @@ public class ReciboServiceImpl implements ReciboService {
                 r.getMoneda(),
                 est != null ? est.getCodigo() : null,
                 est != null ? est.getNombre() : null,
+                tp != null ? tp.getId() : null,
+                tp != null ? tp.getCode() : null,
+                tp != null ? tp.getName() : null,
                 cancelado,
                 r.getQrPayload()
         );
+
     }
 
     private static void validarTexto(String v, String campo) {
