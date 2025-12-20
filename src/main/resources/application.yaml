@@ -15,5 +15,5 @@ springdoc:
     path: /api-docs
 app:
   storage:
-    qr-dir: ${QR_DIR:"C:\\usyc\\qr"}
+    qr-dir: ${QR_DIR:C:\usyc\qr}
 

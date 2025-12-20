@@ -3,15 +3,17 @@ package com.io.usyc.Service.Impl;
 import com.io.usyc.Domain.Alumno;
 import com.io.usyc.Domain.CatCarrera;
 import com.io.usyc.Domain.CatEstatusRecibo;
+import com.io.usyc.Domain.CatTipoPago;
 import com.io.usyc.Domain.Recibo;
 import com.io.usyc.Dto.ReciboCrearReq;
 import com.io.usyc.Dto.ReciboRes;
 import com.io.usyc.Dto.ReciboValidacionRes;
 import com.io.usyc.Repository.AlumnoRepository;
 import com.io.usyc.Repository.CatEstatusReciboRepository;
+import com.io.usyc.Repository.CatTipoPagoRepository;
 import com.io.usyc.Repository.ReciboRepository;
-import com.io.usyc.Service.ReciboService;
 import com.io.usyc.Service.QrCodeService;
+import com.io.usyc.Service.ReciboService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,17 +38,20 @@ public class ReciboServiceImpl implements ReciboService {
     private final ReciboRepository reciboRepo;
     private final AlumnoRepository alumnoRepo;
     private final CatEstatusReciboRepository estatusRepo;
+    private final CatTipoPagoRepository tipoPagoRepo;
     private final QrCodeService qrCodeService;
 
     public ReciboServiceImpl(
             ReciboRepository reciboRepo,
             AlumnoRepository alumnoRepo,
             CatEstatusReciboRepository estatusRepo,
+            CatTipoPagoRepository tipoPagoRepo,
             QrCodeService qrCodeService
     ) {
         this.reciboRepo = reciboRepo;
         this.alumnoRepo = alumnoRepo;
         this.estatusRepo = estatusRepo;
+        this.tipoPagoRepo = tipoPagoRepo;
         this.qrCodeService = qrCodeService;
     }
 
@@ -54,6 +59,9 @@ public class ReciboServiceImpl implements ReciboService {
     public ReciboRes registrarPago(ReciboCrearReq req) {
         validarTexto(req.alumnoId(), "alumnoId");
         validarTexto(req.concepto(), "concepto");
+        if (req.tipoPagoId() == null) {
+            throw new IllegalArgumentException("El campo 'tipoPagoId' es obligatorio.");
+        }
 
         Alumno alumno = alumnoRepo.findById(req.alumnoId().trim())
                 .orElseThrow(() -> new IllegalArgumentException("No existe alumno con id: " + req.alumnoId()));
@@ -65,7 +73,17 @@ public class ReciboServiceImpl implements ReciboService {
         BigDecimal monto = resolverMonto(concepto, alumno.getCarrera(), req.montoManual());
 
         CatEstatusRecibo pagado = estatusRepo.findByCodigo(ESTATUS_PAGADO)
-                .orElseThrow(() -> new IllegalArgumentException("No está configurado el estatus '" + ESTATUS_PAGADO + "' en catálogo."));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No está configurado el estatus '" + ESTATUS_PAGADO + "' en catálogo."
+                ));
+
+        CatTipoPago tipoPago = tipoPagoRepo.findById(req.tipoPagoId())
+                .orElseThrow(() -> new IllegalArgumentException("No existe tipo de pago con id: " + req.tipoPagoId()));
+
+        // Si tu CatTipoPago no tiene active, quita este bloque
+        if (tipoPago.getActive() != null && !Boolean.TRUE.equals(tipoPago.getActive())) {
+            throw new IllegalArgumentException("El tipo de pago seleccionado está inactivo.");
+        }
 
         String folio = generarFolioSimple(); // si luego lo hacemos PRO con seq+lock lo cambiamos
 
@@ -88,6 +106,7 @@ public class ReciboServiceImpl implements ReciboService {
         r.setMonto(monto);
         r.setMoneda(MONEDA_DEFAULT);
         r.setEstatus(pagado);
+        r.setTipoPago(tipoPago);
 
         r.setQrPayload(qrPayload);
         r.setQrHash(qrHash);
@@ -114,12 +133,12 @@ public class ReciboServiceImpl implements ReciboService {
         Recibo r = opt.get();
 
         // Si está cancelado
-        if (r.getCanceladoEn() != null || (r.getEstatus() != null && ESTATUS_CANCELADO.equalsIgnoreCase(r.getEstatus().getCodigo()))) {
+        if (r.getCanceladoEn() != null ||
+                (r.getEstatus() != null && ESTATUS_CANCELADO.equalsIgnoreCase(r.getEstatus().getCodigo()))) {
             return new ReciboValidacionRes("CANCELADO", "El recibo fue cancelado.", toRes(r));
         }
 
-        // Validación de autenticidad:
-        // Recalculamos la firma a partir del payload y de los datos almacenados del recibo
+        // Validación de autenticidad
         boolean ok = validarFirmaQr(r);
         if (!ok) {
             return new ReciboValidacionRes("ALTERADO", "El recibo no pasó la validación de autenticidad.", toRes(r));
@@ -137,7 +156,9 @@ public class ReciboServiceImpl implements ReciboService {
                 .orElseThrow(() -> new IllegalArgumentException("No existe recibo con id: " + reciboId));
 
         CatEstatusRecibo cancelado = estatusRepo.findByCodigo(ESTATUS_CANCELADO)
-                .orElseThrow(() -> new IllegalArgumentException("No está configurado el estatus '" + ESTATUS_CANCELADO + "' en catálogo."));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No está configurado el estatus '" + ESTATUS_CANCELADO + "' en catálogo."
+                ));
 
         r.setEstatus(cancelado);
         r.setCanceladoEn(LocalDateTime.now());
@@ -195,7 +216,6 @@ public class ReciboServiceImpl implements ReciboService {
         String ts = parts[2];
         String firmaEnQr = parts[3];
 
-        // Recalcular firma con datos del recibo en BD
         String base = folio + "|" +
                 r.getAlumno().getId() + "|" +
                 r.getConcepto() + "|" +
@@ -206,7 +226,6 @@ public class ReciboServiceImpl implements ReciboService {
 
         String firmaEsperada = sha256Hex(base);
 
-        // extra check: la firma guardada en BD debe coincidir también (si la guardas)
         if (r.getQrHash() != null && !r.getQrHash().equalsIgnoreCase(firmaEnQr)) {
             return false;
         }
@@ -234,10 +253,9 @@ public class ReciboServiceImpl implements ReciboService {
         var alumno = r.getAlumno();
         var est = r.getEstatus();
 
-        boolean cancelado = r.getCanceladoEn() != null || (est != null && ESTATUS_CANCELADO.equalsIgnoreCase(est.getCodigo()));
+        boolean cancelado = r.getCanceladoEn() != null
+                || (est != null && ESTATUS_CANCELADO.equalsIgnoreCase(est.getCodigo()));
 
-        // OJO: aquí te conviene devolver también qrFileName para que el front lo use si quiere.
-        // Si tu ReciboRes NO tiene qrFileName, lo puedes agregar al record.
         var tp = r.getTipoPago();
 
         return new ReciboRes(
@@ -258,7 +276,6 @@ public class ReciboServiceImpl implements ReciboService {
                 cancelado,
                 r.getQrPayload()
         );
-
     }
 
     private static void validarTexto(String v, String campo) {
