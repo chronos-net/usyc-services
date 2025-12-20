@@ -11,6 +11,7 @@ import com.io.usyc.Repository.AlumnoRepository;
 import com.io.usyc.Repository.CatEstatusReciboRepository;
 import com.io.usyc.Repository.ReciboRepository;
 import com.io.usyc.Service.ReciboService;
+import com.io.usyc.Service.QrCodeService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,21 +30,24 @@ public class ReciboServiceImpl implements ReciboService {
     private static final String ESTATUS_PAGADO = "PAGADO";
     private static final String ESTATUS_CANCELADO = "CANCELADO";
 
-    // Llave secreta local (modo simple). Ideal: ponerlo en application.yml
+    // Ideal: moverlo a application.yml y leerlo por @Value o properties
     private final String llaveQrSecreta = "USYC_LOCAL_SECRET_2025";
 
     private final ReciboRepository reciboRepo;
     private final AlumnoRepository alumnoRepo;
     private final CatEstatusReciboRepository estatusRepo;
+    private final QrCodeService qrCodeService;
 
     public ReciboServiceImpl(
             ReciboRepository reciboRepo,
             AlumnoRepository alumnoRepo,
-            CatEstatusReciboRepository estatusRepo
+            CatEstatusReciboRepository estatusRepo,
+            QrCodeService qrCodeService
     ) {
         this.reciboRepo = reciboRepo;
         this.alumnoRepo = alumnoRepo;
         this.estatusRepo = estatusRepo;
+        this.qrCodeService = qrCodeService;
     }
 
     @Override
@@ -63,13 +67,17 @@ public class ReciboServiceImpl implements ReciboService {
         CatEstatusRecibo pagado = estatusRepo.findByCodigo(ESTATUS_PAGADO)
                 .orElseThrow(() -> new IllegalArgumentException("No está configurado el estatus '" + ESTATUS_PAGADO + "' en catálogo."));
 
-        String folio = generarFolioSimple(); // REC-000001
+        String folio = generarFolioSimple(); // si luego lo hacemos PRO con seq+lock lo cambiamos
 
-        // QR: payload y hash
-        String token = generarTokenCorto(); // random simple
-        String qrPayload = "USYC|" + folio + "|" + token;
+        // 1) Construimos QR payload con timestamp + firma
+        LocalDateTime ts = LocalDateTime.now();
+        String qrPayload = construirQrPayload(folio, alumno.getId(), concepto, monto, fechaPago, ts);
 
-        String qrHash = firmarQr(qrPayload, alumno.getId(), concepto, monto);
+        // 2) Guardamos también el hash (por si quieres doble-check o auditoría)
+        String qrHash = extraerFirmaDePayload(qrPayload);
+
+        // 3) Generamos el PNG y guardamos en disco; sólo guardamos el nombre en BD
+        String qrFileName = qrCodeService.generarYGuardarQr(folio, qrPayload);
 
         Recibo r = new Recibo();
         r.setFolio(folio);
@@ -80,8 +88,11 @@ public class ReciboServiceImpl implements ReciboService {
         r.setMonto(monto);
         r.setMoneda(MONEDA_DEFAULT);
         r.setEstatus(pagado);
+
         r.setQrPayload(qrPayload);
         r.setQrHash(qrHash);
+        r.setQrFileName(qrFileName);
+
         r.setComentario(req.comentario());
 
         r.setCreadoEn(LocalDateTime.now());
@@ -107,9 +118,10 @@ public class ReciboServiceImpl implements ReciboService {
             return new ReciboValidacionRes("CANCELADO", "El recibo fue cancelado.", toRes(r));
         }
 
-        // Recalcular firma para detectar alteración
-        String firmaEsperada = firmarQr(r.getQrPayload(), r.getAlumno().getId(), r.getConcepto(), r.getMonto());
-        if (!firmaEsperada.equals(r.getQrHash())) {
+        // Validación de autenticidad:
+        // Recalculamos la firma a partir del payload y de los datos almacenados del recibo
+        boolean ok = validarFirmaQr(r);
+        if (!ok) {
             return new ReciboValidacionRes("ALTERADO", "El recibo no pasó la validación de autenticidad.", toRes(r));
         }
 
@@ -155,22 +167,57 @@ public class ReciboServiceImpl implements ReciboService {
     }
 
     private String generarFolioSimple() {
-        // Folio simple: REC-000001 basado en ID autoincremental.
-        // OJO: Esto requiere guardar primero o usar una secuencia. Solución simple:
-        // tomamos el último id y sumamos 1 (en local sirve). Si quieres robusto, hacemos tabla secuencia.
+        // Demo/local: REC-000001 (no es concurrente)
         long next = reciboRepo.findAll().stream().mapToLong(Recibo::getId).max().orElse(0L) + 1;
         return "REC-" + String.format("%06d", next);
     }
 
-    private String generarTokenCorto() {
-        // Token simple local (puedes cambiar a UUID)
-        return Long.toHexString(System.nanoTime()).toUpperCase();
+    /**
+     * QR payload final:
+     * USYC|<FOLIO>|<TIMESTAMP>|<FIRMA>
+     *
+     * FIRMA = SHA-256( folio|alumnoId|concepto|monto|fechaPago|timestamp|secret )
+     */
+    private String construirQrPayload(String folio, String alumnoId, String concepto, BigDecimal monto, LocalDate fechaPago, LocalDateTime ts) {
+        String base = folio + "|" + alumnoId + "|" + concepto + "|" + monto.toPlainString() + "|" + fechaPago + "|" + ts + "|" + llaveQrSecreta;
+        String firma = sha256Hex(base);
+        return "USYC|" + folio + "|" + ts + "|" + firma;
     }
 
-    private String firmarQr(String qrPayload, String alumnoId, String concepto, BigDecimal monto) {
-        // Firma: hash(qrPayload|alumnoId|concepto|monto|llaveSecreta)
-        String base = qrPayload + "|" + alumnoId + "|" + concepto + "|" + monto.toPlainString() + "|" + llaveQrSecreta;
-        return sha256Hex(base);
+    private boolean validarFirmaQr(Recibo r) {
+        String payload = r.getQrPayload();
+        String[] parts = (payload == null ? new String[0] : payload.split("\\|"));
+
+        if (parts.length != 4) return false;
+        if (!"USYC".equals(parts[0])) return false;
+
+        String folio = parts[1];
+        String ts = parts[2];
+        String firmaEnQr = parts[3];
+
+        // Recalcular firma con datos del recibo en BD
+        String base = folio + "|" +
+                r.getAlumno().getId() + "|" +
+                r.getConcepto() + "|" +
+                r.getMonto().toPlainString() + "|" +
+                r.getFechaPago() + "|" +
+                ts + "|" +
+                llaveQrSecreta;
+
+        String firmaEsperada = sha256Hex(base);
+
+        // extra check: la firma guardada en BD debe coincidir también (si la guardas)
+        if (r.getQrHash() != null && !r.getQrHash().equalsIgnoreCase(firmaEnQr)) {
+            return false;
+        }
+
+        return firmaEsperada.equalsIgnoreCase(firmaEnQr);
+    }
+
+    private String extraerFirmaDePayload(String payload) {
+        String[] parts = payload.split("\\|");
+        if (parts.length != 4) throw new IllegalArgumentException("QR payload inválido.");
+        return parts[3];
     }
 
     private static String sha256Hex(String value) {
@@ -189,6 +236,8 @@ public class ReciboServiceImpl implements ReciboService {
 
         boolean cancelado = r.getCanceladoEn() != null || (est != null && ESTATUS_CANCELADO.equalsIgnoreCase(est.getCodigo()));
 
+        // OJO: aquí te conviene devolver también qrFileName para que el front lo use si quiere.
+        // Si tu ReciboRes NO tiene qrFileName, lo puedes agregar al record.
         return new ReciboRes(
                 r.getId(),
                 r.getFolio(),

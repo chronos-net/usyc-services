@@ -58,11 +58,16 @@ public class Recibo {
     @Column(name = "comentario", length = 300)
     private String comentario;
 
+    @Column(name = "qr_file_name ")
+    private String qrFileName ;
+
     @Column(name = "creado_en", nullable = false)
     private LocalDateTime creadoEn;
 
     @Column(name = "actualizado_en", nullable = false)
     private LocalDateTime actualizadoEn;
+
+
 
     @PrePersist
     void prePersist() {

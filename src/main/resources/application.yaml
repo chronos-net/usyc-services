@@ -13,3 +13,6 @@ springdoc:
     path: /swagger
   api-docs:
     path: /api-docs
+app:
+  storage:
+    qr-dir: ./storage/qrs
