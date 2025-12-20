@@ -15,7 +15,9 @@ public record ReciboRes(
         String moneda,
         String estatusCodigo,
         String estatusNombre,
+        Integer tipoPagoId,
+        String tipoPagoCodigo,
+        String tipoPagoNombre,
         Boolean cancelado,
         String qrPayload
 ) {}
-

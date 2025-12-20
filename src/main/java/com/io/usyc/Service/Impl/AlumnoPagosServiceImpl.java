@@ -182,7 +182,16 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
         var a = r.getAlumno();
         var est = r.getEstatus();
 
-        boolean cancelado = r.getCanceladoEn() != null || (est != null && "CANCELADO".equalsIgnoreCase(est.getCodigo()));
+        // cancelado real (por marca o por estatus)
+        boolean cancelado = r.getCanceladoEn() != null
+                || (est != null && "CANCELADO".equalsIgnoreCase(est.getCodigo()));
+
+        // tipo pago (puede ser null en datos viejos si aún no migras)
+        var tp = r.getTipoPago();
+
+        Integer tipoPagoId = tp != null ? tp.getId() : null;
+        String tipoPagoCodigo = tp != null ? tp.getCode() : null;
+        String tipoPagoNombre = tp != null ? tp.getName() : null;
 
         return new ReciboRes(
                 r.getId(),
@@ -196,9 +205,15 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                 r.getMoneda(),
                 est != null ? est.getCodigo() : null,
                 est != null ? est.getNombre() : null,
+                tipoPagoId,
+                tipoPagoCodigo,
+                tipoPagoNombre,
                 cancelado,
                 r.getQrPayload()
         );
     }
+
+
+
 }
 

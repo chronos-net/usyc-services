@@ -5,8 +5,9 @@ import java.time.LocalDate;
 
 public record ReciboCrearReq(
         String alumnoId,
-        String concepto,          // INSCRIPCION | MENSUALIDAD | OTRO
-        BigDecimal montoManual,   // obligatorio si concepto=OTRO
-        LocalDate fechaPago,      // si null = hoy
+        String concepto,
+        BigDecimal montoManual,
+        LocalDate fechaPago,
+        Integer tipoPagoId,
         String comentario
 ) {}
