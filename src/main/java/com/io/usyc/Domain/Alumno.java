@@ -44,6 +44,11 @@ public class Alumno {
     @Column(name = "actualizado_en", nullable = false)
     private LocalDateTime actualizadoEn;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "plantel_id", nullable = false)
+    private CatPlantel plantel;
+
+
     @PrePersist
     void prePersist() {
         var now = LocalDateTime.now();

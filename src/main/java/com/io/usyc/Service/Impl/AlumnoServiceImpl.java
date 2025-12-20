@@ -3,10 +3,7 @@ package com.io.usyc.Service.Impl;
 import com.io.usyc.Domain.*;
 import com.io.usyc.Dto.AlumnoCreateReq;
 import com.io.usyc.Dto.AlumnoRes;
-import com.io.usyc.Repository.AlumnoFolioSeqRepository;
-import com.io.usyc.Repository.AlumnoRepository;
-import com.io.usyc.Repository.CatCarreraRepository;
-import com.io.usyc.Repository.CatEscolaridadRepository;
+import com.io.usyc.Repository.*;
 import com.io.usyc.Service.AlumnoService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,41 +19,62 @@ public class AlumnoServiceImpl implements AlumnoService {
     private final AlumnoFolioSeqRepository seqRepo;
     private final CatEscolaridadRepository escolaridadRepo;
     private final CatCarreraRepository carreraRepo;
+    private final CatPlantelRepository plantelRepo;
 
     public AlumnoServiceImpl(
             AlumnoRepository alumnoRepo,
             AlumnoFolioSeqRepository seqRepo,
             CatEscolaridadRepository escolaridadRepo,
-            CatCarreraRepository carreraRepo
+            CatCarreraRepository carreraRepo,
+            CatPlantelRepository plantelRepo
     ) {
         this.alumnoRepo = alumnoRepo;
         this.seqRepo = seqRepo;
         this.escolaridadRepo = escolaridadRepo;
         this.carreraRepo = carreraRepo;
+        this.plantelRepo = plantelRepo;
     }
 
     @Override
     public AlumnoRes crear(AlumnoCreateReq req) {
         validarTexto(req.nombreCompleto(), "nombreCompleto");
-        if (req.escolaridadId() == null) throw new IllegalArgumentException("El campo 'escolaridadId' es obligatorio.");
+
+        if (req.escolaridadId() == null)
+            throw new IllegalArgumentException("El campo 'escolaridadId' es obligatorio.");
+
         validarCarreraId(req.carreraId());
+
+        if (req.plantelId() == null)
+            throw new IllegalArgumentException("El campo 'plantelId' es obligatorio.");
 
         // Normaliza carreraId a 2 dígitos
         String carreraId = normalizarCarreraId(req.carreraId());
 
-        // Valida catálogos existentes
         CatEscolaridad escolaridad = escolaridadRepo.findById(req.escolaridadId())
-                .orElseThrow(() -> new IllegalArgumentException("No existe escolaridad con id: " + req.escolaridadId()));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No existe escolaridad con id: " + req.escolaridadId()
+                ));
 
         CatCarrera carrera = carreraRepo.findById(carreraId)
-                .orElseThrow(() -> new IllegalArgumentException("No existe carrera con id: " + carreraId));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No existe carrera con id: " + carreraId
+                ));
 
-        // Regla: la carrera debe pertenecer a la escolaridad seleccionada
         if (!carrera.getEscolaridad().getId().equals(escolaridad.getId())) {
-            throw new IllegalArgumentException("La carrera '" + carreraId + "' no pertenece a la escolaridad seleccionada.");
+            throw new IllegalArgumentException(
+                    "La carrera '" + carreraId + "' no pertenece a la escolaridad seleccionada."
+            );
         }
 
-        // Matricula opcional pero si viene, que no se repita
+        CatPlantel plantel = plantelRepo.findById(req.plantelId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No existe plantel con id: " + req.plantelId()
+                ));
+
+        if (!Boolean.TRUE.equals(plantel.getActive())) {
+            throw new IllegalArgumentException("El plantel seleccionado está inactivo.");
+        }
+
         if (req.matricula() != null && !req.matricula().trim().isEmpty()) {
             String matricula = req.matricula().trim().toUpperCase();
             if (alumnoRepo.existsByMatricula(matricula)) {
@@ -64,7 +82,6 @@ public class AlumnoServiceImpl implements AlumnoService {
             }
         }
 
-        // Genera alumno_id: AAAA + CC + NNN (con lock)
         int anio = LocalDate.now().getYear();
         AlumnoFolioSeq seq = obtenerOCrearSeqBloqueado(anio, carreraId);
         int nuevoSeq = seq.getUltimoSeq() + 1;
@@ -79,10 +96,9 @@ public class AlumnoServiceImpl implements AlumnoService {
         a.setMatricula(req.matricula() == null ? null : req.matricula().trim().toUpperCase());
         a.setEscolaridad(escolaridad);
         a.setCarrera(carrera);
+        a.setPlantel(plantel);
         a.setFechaIngreso(req.fechaIngreso() == null ? LocalDate.now() : req.fechaIngreso());
         a.setActivo(true);
-
-        // timestamps
         a.setCreadoEn(LocalDateTime.now());
         a.setActualizadoEn(LocalDateTime.now());
 
@@ -95,24 +111,25 @@ public class AlumnoServiceImpl implements AlumnoService {
     public AlumnoRes obtener(String alumnoId) {
         validarTexto(alumnoId, "alumnoId");
         Alumno a = alumnoRepo.findById(alumnoId.trim())
-                .orElseThrow(() -> new IllegalArgumentException("No existe alumno con id: " + alumnoId));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No existe alumno con id: " + alumnoId
+                ));
         return toRes(a);
     }
 
     private AlumnoFolioSeq obtenerOCrearSeqBloqueado(int anio, String carreraId) {
-        // Intento 1: buscar con lock
         var opt = seqRepo.findForUpdate(anio, carreraId);
         if (opt.isPresent()) return opt.get();
 
-        // Si no existe, lo creamos
         AlumnoFolioSeq nuevo = new AlumnoFolioSeq();
         nuevo.setId(new AlumnoFolioSeqId(anio, carreraId));
         nuevo.setUltimoSeq(0);
         seqRepo.save(nuevo);
 
-        // Y ahora sí lo volvemos a pedir con lock (para evitar carreras en paralelo)
         return seqRepo.findForUpdate(anio, carreraId)
-                .orElseThrow(() -> new IllegalStateException("No se pudo inicializar el consecutivo para año/carrera."));
+                .orElseThrow(() -> new IllegalStateException(
+                        "No se pudo inicializar el consecutivo para año/carrera."
+                ));
     }
 
     private AlumnoRes toRes(Alumno a) {
@@ -124,6 +141,8 @@ public class AlumnoServiceImpl implements AlumnoService {
                 a.getEscolaridad().getNombre(),
                 a.getCarrera().getId(),
                 a.getCarrera().getNombre(),
+                a.getPlantel().getId(),
+                a.getPlantel().getName(),
                 a.getFechaIngreso(),
                 a.getActivo()
         );
@@ -136,9 +155,13 @@ public class AlumnoServiceImpl implements AlumnoService {
     }
 
     private static void validarCarreraId(String v) {
-        if (v == null || v.trim().isEmpty()) throw new IllegalArgumentException("El campo 'carreraId' es obligatorio.");
+        if (v == null || v.trim().isEmpty())
+            throw new IllegalArgumentException("El campo 'carreraId' es obligatorio.");
         String s = v.trim();
-        if (!s.matches("\\d{1,2}")) throw new IllegalArgumentException("El 'carreraId' debe ser numérico de 1 o 2 dígitos (ej: 01, 10).");
+        if (!s.matches("\\d{1,2}"))
+            throw new IllegalArgumentException(
+                    "El 'carreraId' debe ser numérico de 1 o 2 dígitos (ej: 01, 10)."
+            );
     }
 
     private static String normalizarCarreraId(String v) {
@@ -146,4 +169,3 @@ public class AlumnoServiceImpl implements AlumnoService {
         return String.format("%02d", Integer.parseInt(v.trim()));
     }
 }
-

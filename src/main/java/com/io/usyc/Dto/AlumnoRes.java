@@ -10,6 +10,8 @@ public record AlumnoRes(
         String escolaridadNombre,
         String carreraId,
         String carreraNombre,
+        Integer plantelId,
+        String plantelNombre,
         LocalDate fechaIngreso,
         Boolean activo
 ) {}
