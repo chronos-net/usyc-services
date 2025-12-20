@@ -1,0 +1,12 @@
+package com.io.usyc.Dto;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+public record PagoProyectadoRes(
+        String periodo,          // YYYY-MM (ej: 2025-12)
+        LocalDate fechaVencimiento,
+        String conceptoCodigo,   // MENSUALIDAD / INSCRIPCION
+        BigDecimal monto,
+        String estado            // PAGADO / PENDIENTE
+) {}

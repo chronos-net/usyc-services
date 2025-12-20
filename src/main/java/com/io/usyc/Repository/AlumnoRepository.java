@@ -1,8 +1,14 @@
 package com.io.usyc.Repository;
 
 import com.io.usyc.Domain.Alumno;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AlumnoRepository extends JpaRepository<Alumno, String> {
     boolean existsByMatricula(String matricula);
+
+    @EntityGraph(attributePaths = {"escolaridad", "carrera"})
+    Page<Alumno> findAll(Pageable pageable);
 }

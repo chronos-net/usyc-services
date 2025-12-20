@@ -1,0 +1,44 @@
+package com.io.usyc.Service.Impl;
+
+import com.io.usyc.Domain.Alumno;
+import com.io.usyc.Dto.AlumnoListItemRes;
+import com.io.usyc.Repository.AlumnoRepository;
+import com.io.usyc.Service.AlumnoCatalogoService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@Transactional(readOnly = true)
+public class AlumnoCatalogoServiceImpl implements AlumnoCatalogoService {
+
+    private final AlumnoRepository alumnoRepo;
+
+    public AlumnoCatalogoServiceImpl(AlumnoRepository alumnoRepo) {
+        this.alumnoRepo = alumnoRepo;
+    }
+
+    @Override
+    public Page<AlumnoListItemRes> listar(Pageable pageable) {
+        return alumnoRepo.findAll(pageable).map(this::toListItem);
+    }
+
+    private AlumnoListItemRes toListItem(Alumno a) {
+        var esc = a.getEscolaridad();
+        var car = a.getCarrera();
+
+        return new AlumnoListItemRes(
+                a.getId(),
+                a.getNombreCompleto(),
+                a.getMatricula(),
+                a.getActivo(),
+                a.getFechaIngreso(),
+                a.getFechaTermino(),
+                esc != null ? esc.getId() : null,
+                esc != null ? esc.getNombre() : null,
+                car != null ? car.getId() : null,
+                car != null ? car.getNombre() : null
+        );
+    }
+}
