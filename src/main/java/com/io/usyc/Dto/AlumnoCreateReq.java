@@ -10,6 +10,7 @@ public record AlumnoCreateReq(
         Long escolaridadId,
         String carreraId,      // "01".."99" (acepta "1" y lo normaliza)
         LocalDate fechaIngreso, // opcional, si viene null = hoy
-            @NotNull Integer plantelId
-
+        @NotNull Integer plantelId,
+        Boolean pullPrevReceipts,
+        String prevReceiptsNombre
 ) {}

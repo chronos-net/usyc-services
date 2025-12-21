@@ -13,5 +13,5 @@ public record AlumnoRes(
         Integer plantelId,
         String plantelNombre,
         LocalDate fechaIngreso,
-        Boolean activo
+        Boolean activo,Integer recibosPreviosMigrados
 ) {}

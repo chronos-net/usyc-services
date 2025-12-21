@@ -5,12 +5,15 @@ import com.io.usyc.Dto.AlumnoCreateReq;
 import com.io.usyc.Dto.AlumnoRes;
 import com.io.usyc.Repository.*;
 import com.io.usyc.Service.AlumnoService;
+import com.io.usyc.Service.ReciboStgMigrationService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+@Slf4j
 @Service
 @Transactional
 public class AlumnoServiceImpl implements AlumnoService {
@@ -20,23 +23,26 @@ public class AlumnoServiceImpl implements AlumnoService {
     private final CatEscolaridadRepository escolaridadRepo;
     private final CatCarreraRepository carreraRepo;
     private final CatPlantelRepository plantelRepo;
+    private final ReciboStgMigrationService reciboStgMigrationService;
 
     public AlumnoServiceImpl(
             AlumnoRepository alumnoRepo,
             AlumnoFolioSeqRepository seqRepo,
             CatEscolaridadRepository escolaridadRepo,
             CatCarreraRepository carreraRepo,
-            CatPlantelRepository plantelRepo
+            CatPlantelRepository plantelRepo,
+            ReciboStgMigrationService reciboStgMigrationService
     ) {
         this.alumnoRepo = alumnoRepo;
         this.seqRepo = seqRepo;
         this.escolaridadRepo = escolaridadRepo;
         this.carreraRepo = carreraRepo;
         this.plantelRepo = plantelRepo;
+        this.reciboStgMigrationService = reciboStgMigrationService;
     }
-
     @Override
     public AlumnoRes crear(AlumnoCreateReq req) {
+
         validarTexto(req.nombreCompleto(), "nombreCompleto");
 
         if (req.escolaridadId() == null)
@@ -82,7 +88,9 @@ public class AlumnoServiceImpl implements AlumnoService {
             }
         }
 
+        // ===== Generación de alumnoId AAAACCNNN =====
         int anio = LocalDate.now().getYear();
+
         AlumnoFolioSeq seq = obtenerOCrearSeqBloqueado(anio, carreraId);
         int nuevoSeq = seq.getUltimoSeq() + 1;
         seq.setUltimoSeq(nuevoSeq);
@@ -102,9 +110,34 @@ public class AlumnoServiceImpl implements AlumnoService {
         a.setCreadoEn(LocalDateTime.now());
         a.setActualizadoEn(LocalDateTime.now());
 
-        Alumno saved = alumnoRepo.save(a);
-        return toRes(saved);
+        Alumno saved = alumnoRepo.saveAndFlush(a); // ✅ fuerza INSERT inmediato en DB
+
+        // ===== Bandera: migrar recibos previos desde recibo_stg =====
+        Integer migratedCount = null;
+
+        if (Boolean.TRUE.equals(req.pullPrevReceipts())) {
+
+            // ✅ VALIDACIÓN EXTRA: si ya hay recibos migrados para este alumno => excepción
+            if (reciboStgMigrationService.alreadyMigratedForAlumno(saved.getId())) {
+                throw new IllegalStateException(
+                        "Este alumno ya tiene recibos migrados previamente desde la base de datos anterior."
+                );
+            }
+
+            String nombreLookup = (req.prevReceiptsNombre() != null && !req.prevReceiptsNombre().trim().isEmpty())
+                    ? req.prevReceiptsNombre()
+                    : req.nombreCompleto();
+
+            // aquí ya no hacemos best-effort; si migración falla, sí debe fallar
+            migratedCount = reciboStgMigrationService.migrateByNombreToAlumno(nombreLookup, saved.getId());
+
+            log.info("Migración recibos previos OK. alumnoId={}, nombreLookup='{}', migrated={}",
+                    saved.getId(), nombreLookup, migratedCount);
+        }
+
+        return toRes(saved, migratedCount);
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -114,7 +147,7 @@ public class AlumnoServiceImpl implements AlumnoService {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No existe alumno con id: " + alumnoId
                 ));
-        return toRes(a);
+        return toRes(a, null);
     }
 
     private AlumnoFolioSeq obtenerOCrearSeqBloqueado(int anio, String carreraId) {
@@ -132,7 +165,7 @@ public class AlumnoServiceImpl implements AlumnoService {
                 ));
     }
 
-    private AlumnoRes toRes(Alumno a) {
+    private AlumnoRes toRes(Alumno a, Integer recibosPreviosMigrados) {
         return new AlumnoRes(
                 a.getId(),
                 a.getNombreCompleto(),
@@ -144,7 +177,8 @@ public class AlumnoServiceImpl implements AlumnoService {
                 a.getPlantel().getId(),
                 a.getPlantel().getName(),
                 a.getFechaIngreso(),
-                a.getActivo()
+                a.getActivo(),
+                recibosPreviosMigrados
         );
     }
 
@@ -157,6 +191,7 @@ public class AlumnoServiceImpl implements AlumnoService {
     private static void validarCarreraId(String v) {
         if (v == null || v.trim().isEmpty())
             throw new IllegalArgumentException("El campo 'carreraId' es obligatorio.");
+
         String s = v.trim();
         if (!s.matches("\\d{1,2}"))
             throw new IllegalArgumentException(
