@@ -16,4 +16,11 @@ springdoc:
 app:
   storage:
     qr-dir: ${QR_DIR:C:\usyc\qr}
-
+  security:
+    jwt:
+      secret: "CAMBIA_ESTA_CLAVE_LARGA_LARGA_LARGA_32+_CHARS_MIN"
+      minutes: 480
+    cookie:
+      name: "JWT"
+      same-site: "Lax"   # Lax para swagger y navegación normal
+      secure: false      # en local false; en prod true (HTTPS)
