@@ -1,6 +1,7 @@
 package com.io.usyc.Controller;
 
 import com.io.usyc.Dto.AlumnoPagosResumenRes;
+import com.io.usyc.Dto.ReciboRes;
 import com.io.usyc.Service.AlumnoPagosService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,8 @@ import io.swagger.v3.oas.annotations.media.Content;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/alumnos")
@@ -37,5 +40,20 @@ public class AlumnoPagosController {
     ) {
         return ResponseEntity.ok(alumnoPagosService.obtenerResumen(alumnoId));
     }
+
+
+    @Operation(
+            summary = "Obtener pagos (recibos)",
+            description = "Regresa todos los recibos visibles para el usuario autenticado. " +
+                    "Si el usuario tiene plantelId=null (admin), regresa todos. Si no, filtra por plantel."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "OK")
+    })
+    @GetMapping("/filter")
+    public ResponseEntity<List<ReciboRes>> obtenerPagos() {
+        return ResponseEntity.ok(alumnoPagosService.obtenerPagos());
+    }
+
 }
 

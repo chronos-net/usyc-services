@@ -17,4 +17,15 @@ public interface ReciboRepository extends JpaRepository<Recibo, Long> {
       and (r.canceladoEn is null)
   """)
     List<Recibo> findPagosNoCancelados(@Param("alumnoId") String alumnoId);
+
+    @Query("""
+        select r
+        from Recibo r
+        join fetch r.alumno a
+        join fetch r.estatus e
+        join fetch r.tipoPago tp
+        where (:plantelId is null or r.plantelId = :plantelId)
+        order by r.fechaEmision desc, r.id desc
+    """)
+    List<Recibo> findAllVisible(@Param("plantelId") Integer plantelId);
 }

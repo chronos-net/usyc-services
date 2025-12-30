@@ -6,8 +6,12 @@ import com.io.usyc.Dto.AlumnoPagosResumenRes;
 import com.io.usyc.Dto.PagoProyectadoRes;
 import com.io.usyc.Dto.ReciboRes;
 import com.io.usyc.Repository.AlumnoRepository;
+import com.io.usyc.Repository.AppUserRepository;
 import com.io.usyc.Repository.ReciboRepository;
 import com.io.usyc.Service.AlumnoPagosService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,12 +21,14 @@ import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
 
+
 @Service
 @Transactional(readOnly = true)
 public class AlumnoPagosServiceImpl implements AlumnoPagosService {
 
     private final AlumnoRepository alumnoRepo;
     private final ReciboRepository reciboRepo;
+    @Autowired private AppUserRepository appUserRepository;
 
     public AlumnoPagosServiceImpl(AlumnoRepository alumnoRepo, ReciboRepository reciboRepo) {
         this.alumnoRepo = alumnoRepo;
@@ -123,6 +129,63 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
         );
     }
 
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ReciboRes> obtenerPagos() {
+        Integer plantelId = currentUserPlantelIdOrNull();
+        return reciboRepo.findAllVisible(plantelId).stream()
+                .map(this::toRes)     // ✅ aquí sí existe porque estás en la misma clase
+                .toList();
+    }
+    private static final String ESTATUS_CANCELADO = "CANCELADO";
+
+    private ReciboRes toRes(Recibo r) {
+        var alumno = r.getAlumno();
+        var est = r.getEstatus();
+
+        boolean cancelado = r.getCanceladoEn() != null
+                || (est != null && ESTATUS_CANCELADO.equalsIgnoreCase(est.getCodigo()));
+
+        var tp = r.getTipoPago();
+
+        return new ReciboRes(
+                r.getId(),
+                r.getFolio(),
+                r.getFolioLegacy(),
+                r.getFechaEmision(),
+                r.getFechaPago(),
+                alumno != null ? alumno.getId() : null,
+                alumno != null ? alumno.getNombreCompleto() : null,
+                r.getConcepto(),
+                r.getMonto(),
+                r.getMoneda(),
+                est != null ? est.getCodigo() : null,
+                est != null ? est.getNombre() : null,
+                tp != null ? tp.getId() : null,
+                tp != null ? tp.getCode() : null,
+                tp != null ? tp.getName() : null,
+                cancelado,
+                r.getQrPayload()
+        );
+    }
+    private Integer currentUserPlantelIdOrNull() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            throw new IllegalStateException("No hay usuario autenticado.");
+        }
+
+        String username = auth.getName();
+
+        var user = appUserRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalStateException("Usuario no encontrado: " + username));
+
+        return user.getPlantel() != null ? user.getPlantel().getId() : null; // ✅ admin -> null
+    }
+
+
+
+
     // -------------------------
     // Helpers
     // -------------------------
@@ -195,7 +258,7 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
 
         return new ReciboRes(
                 r.getId(),
-                r.getFolio(),
+                r.getFolio(),r.getFolioLegacy(),
                 r.getFechaEmision(),
                 r.getFechaPago(),
                 a != null ? a.getId() : null,

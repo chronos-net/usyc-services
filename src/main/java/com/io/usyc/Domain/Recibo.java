@@ -71,6 +71,12 @@ public class Recibo {
     @JoinColumn(name = "tipo_pago_id", nullable = false)
     private CatTipoPago tipoPago;
 
+    @Column(name="plantel_id", nullable=false)
+    private Integer plantelId;
+
+    @Column(name = "folio_legacy", length = 40)
+    private String folioLegacy;
+
 
     @PrePersist
     void prePersist() {

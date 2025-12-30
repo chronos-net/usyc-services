@@ -61,90 +61,105 @@ public class ReciboStgMigrationServiceImpl implements ReciboStgMigrationService 
 
         String nombreKey = normalize(nombre);
 
-        // Asegura extensión para digest() (si no tienes permisos, quítalo y haz hash en Java)
+        // Si no tienes permisos, quita esto y calcula el hash en Java
         jdbc.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto;");
 
         String sql = """
-            INSERT INTO recibo (
-              folio,
-              folio_legacy,
-              fecha_emision,
-              fecha_pago,
-              alumno_id,
-              concepto,
-              monto,
-              moneda,
-              estatus_id,
-              qr_payload,
-              qr_hash,
-              creado_en,
-              actualizado_en,
-              tipo_pago_id
-            )
-            SELECT
-              -- folio nuevo del sistema (puedes cambiar el formato si quieres)
-              'USYC-' || to_char(TO_DATE(TRIM(s.fecha_texto), 'DD/MM/YYYY'), 'YYYYMMDD') || '-' ||
-              LPAD(row_number() OVER (ORDER BY TRIM(s.folio))::text, 6, '0') AS folio,
+        INSERT INTO recibo (
+          folio,
+          folio_legacy,
+          fecha_emision,
+          fecha_pago,
+          alumno_id,
+          plantel_id,
+          concepto,
+          monto,
+          moneda,
+          estatus_id,
+          qr_payload,
+          qr_hash,
+          creado_en,
+          actualizado_en,
+          tipo_pago_id
+        )
+        SELECT
+          -- ✅ folio nuevo sin choque: basado en fecha + folio legacy (y truncado a 40)
+          LEFT(
+            'USYC-' || to_char(TO_DATE(TRIM(s.fecha_texto), 'DD/MM/YYYY'), 'YYYYMMDD') || '-' || TRIM(s.folio),
+            40
+          ) AS folio,
 
-              TRIM(s.folio) AS folio_legacy,
+          TRIM(s.folio) AS folio_legacy,
 
-              TO_DATE(TRIM(s.fecha_texto), 'DD/MM/YYYY') AS fecha_emision,
-              TO_DATE(TRIM(s.fecha_texto), 'DD/MM/YYYY') AS fecha_pago,
+          TO_DATE(TRIM(s.fecha_texto), 'DD/MM/YYYY') AS fecha_emision,
+          TO_DATE(TRIM(s.fecha_texto), 'DD/MM/YYYY') AS fecha_pago,
 
-              ? AS alumno_id,
+          ? AS alumno_id,
 
-              LEFT(TRIM(s.concepto), 180) AS concepto,
+          -- ✅ plantel sale del alumno
+          a.plantel_id AS plantel_id,
 
-              CAST(REPLACE(REPLACE(TRIM(s.valor_texto), ',', ''), '$', '') AS NUMERIC(12,2)) AS monto,
+          LEFT(TRIM(s.concepto), 180) AS concepto,
 
-              'MXN' AS moneda,
+          CAST(REPLACE(REPLACE(TRIM(s.valor_texto), ',', ''), '$', '') AS NUMERIC(12,2)) AS monto,
 
-              ? AS estatus_id,
+          'MXN' AS moneda,
 
-              -- qr_payload estable
-              (
-                'RECIBO|' || TRIM(s.folio) || '|' || ? || '|' ||
-                REPLACE(REPLACE(TRIM(s.valor_texto), ',', ''), '$', '') || '|' ||
-                to_char(TO_DATE(TRIM(s.fecha_texto), 'DD/MM/YYYY'), 'YYYYMMDD')
-              ) AS qr_payload,
+          ? AS estatus_id,
 
-              encode(digest(
-                'RECIBO|' || TRIM(s.folio) || '|' || ? || '|' ||
-                REPLACE(REPLACE(TRIM(s.valor_texto), ',', ''), '$', '') || '|' ||
-                to_char(TO_DATE(TRIM(s.fecha_texto), 'DD/MM/YYYY'), 'YYYYMMDD'),
-                'sha256'
-              ), 'hex') AS qr_hash,
+          -- qr_payload estable (usa folio legacy)
+          (
+            'RECIBO|' || TRIM(s.folio) || '|' || ? || '|' ||
+            REPLACE(REPLACE(TRIM(s.valor_texto), ',', ''), '$', '') || '|' ||
+            to_char(TO_DATE(TRIM(s.fecha_texto), 'DD/MM/YYYY'), 'YYYYMMDD')
+          ) AS qr_payload,
 
-              now(), now(),
+          encode(digest(
+            'RECIBO|' || TRIM(s.folio) || '|' || ? || '|' ||
+            REPLACE(REPLACE(TRIM(s.valor_texto), ',', ''), '$', '') || '|' ||
+            to_char(TO_DATE(TRIM(s.fecha_texto), 'DD/MM/YYYY'), 'YYYYMMDD'),
+            'sha256'
+          ), 'hex') AS qr_hash,
 
-              ? AS tipo_pago_id
+          now(), now(),
 
-            FROM public.recibo_stg s
-            WHERE
-              -- match por nombre normalizado
-              UPPER(REGEXP_REPLACE(TRIM(s.recibido_de), '\\s+', ' ', 'g')) = ?
+          ? AS tipo_pago_id
 
-              -- básicos
-              AND TRIM(COALESCE(s.folio,'')) <> ''
-              AND TRIM(COALESCE(s.fecha_texto,'')) <> ''
-              AND TRIM(COALESCE(s.valor_texto,'')) <> ''
-              AND TRIM(COALESCE(s.concepto,'')) <> ''
+        FROM public.recibo_stg s
+        JOIN alumno a ON a.alumno_id = ?
 
-              -- fecha válida dd/mm/yyyy
-              AND TRIM(s.fecha_texto) ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'
+        WHERE
+          -- match por nombre normalizado
+          UPPER(REGEXP_REPLACE(TRIM(s.recibido_de), '\\s+', ' ', 'g')) = ?
 
-              -- monto válido (evita cosas tipo 550+E1309...)
-              AND REPLACE(REPLACE(TRIM(s.valor_texto), ',', ''), '$', '') ~ '^-?[0-9]+(\\.[0-9]+)?$'
+          -- básicos
+          AND TRIM(COALESCE(s.folio,'')) <> ''
+          AND TRIM(COALESCE(s.fecha_texto,'')) <> ''
+          AND TRIM(COALESCE(s.valor_texto,'')) <> ''
+          AND TRIM(COALESCE(s.concepto,'')) <> ''
 
-              -- evita duplicados por folio_legacy
-              AND NOT EXISTS (
-                SELECT 1
-                FROM recibo r
-                WHERE r.folio_legacy = TRIM(s.folio)
-              );
-        """;
+          -- fecha válida dd/mm/yyyy
+          AND TRIM(s.fecha_texto) ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'
 
-        // Orden de params: alumno_id, estatus_id, alumnoId (payload), alumnoId (hash), tipo_pago_id, nombreKey
+          -- monto válido
+          AND REPLACE(REPLACE(TRIM(s.valor_texto), ',', ''), '$', '') ~ '^-?[0-9]+(\\.[0-9]+)?$'
+
+          -- evita duplicados por folio_legacy
+          AND NOT EXISTS (
+            SELECT 1
+            FROM recibo r
+            WHERE r.folio_legacy = TRIM(s.folio)
+          );
+    """;
+
+        // Params en orden de aparición:
+        // 1) alumno_id (select)
+        // 2) estatus_id
+        // 3) alumnoId (payload)
+        // 4) alumnoId (hash)
+        // 5) tipo_pago_id
+        // 6) alumnoId (join alumno a)
+        // 7) nombreKey (where)
         return jdbc.update(
                 sql,
                 alumnoId,
@@ -152,9 +167,11 @@ public class ReciboStgMigrationServiceImpl implements ReciboStgMigrationService 
                 alumnoId,
                 alumnoId,
                 tipoPagoNdId,
+                alumnoId,
                 nombreKey
         );
     }
+
 
     private String normalize(String s) {
         return s.trim().replaceAll("\\s+", " ").toUpperCase();

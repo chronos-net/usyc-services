@@ -11,4 +11,8 @@ public interface AlumnoRepository extends JpaRepository<Alumno, String> {
 
     @EntityGraph(attributePaths = {"escolaridad", "carrera"})
     Page<Alumno> findAll(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"escolaridad", "carrera"})
+    Page<Alumno> findByPlantel_Id(Integer plantelId, Pageable pageable);
+
 }

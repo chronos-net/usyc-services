@@ -6,6 +6,7 @@ import java.time.LocalDate;
 public record ReciboRes(
         Long reciboId,
         String folio,
+        String folioLegacy,
         LocalDate fechaEmision,
         LocalDate fechaPago,
         String alumnoId,
@@ -16,8 +17,9 @@ public record ReciboRes(
         String estatusCodigo,
         String estatusNombre,
         Integer tipoPagoId,
-        String tipoPagoCodigo,
-        String tipoPagoNombre,
-        Boolean cancelado,
+        String tipoPagoCode,
+        String tipoPagoName,
+        boolean cancelado,
         String qrPayload
 ) {}
+

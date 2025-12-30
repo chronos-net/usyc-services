@@ -1,22 +1,17 @@
 package com.io.usyc.Service.Impl;
 
-import com.io.usyc.Domain.Alumno;
-import com.io.usyc.Domain.CatCarrera;
-import com.io.usyc.Domain.CatEstatusRecibo;
-import com.io.usyc.Domain.CatTipoPago;
-import com.io.usyc.Domain.Recibo;
+import com.io.usyc.Domain.*;
 import com.io.usyc.Dto.ReciboCrearReq;
 import com.io.usyc.Dto.ReciboRes;
 import com.io.usyc.Dto.ReciboValidacionRes;
-import com.io.usyc.Repository.AlumnoRepository;
-import com.io.usyc.Repository.CatEstatusReciboRepository;
-import com.io.usyc.Repository.CatTipoPagoRepository;
-import com.io.usyc.Repository.ReciboRepository;
+import com.io.usyc.Repository.*;
 import com.io.usyc.Service.QrCodeService;
 import com.io.usyc.Service.ReciboService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -41,6 +36,8 @@ public class ReciboServiceImpl implements ReciboService {
     private final CatTipoPagoRepository tipoPagoRepo;
     private final QrCodeService qrCodeService;
 
+    @Autowired private AppUserRepository appUserRepository;
+
     public ReciboServiceImpl(
             ReciboRepository reciboRepo,
             AlumnoRepository alumnoRepo,
@@ -63,8 +60,19 @@ public class ReciboServiceImpl implements ReciboService {
             throw new IllegalArgumentException("El campo 'tipoPagoId' es obligatorio.");
         }
 
+        Integer plantelId = currentPlantelId();
+
         Alumno alumno = alumnoRepo.findById(req.alumnoId().trim())
                 .orElseThrow(() -> new IllegalArgumentException("No existe alumno con id: " + req.alumnoId()));
+
+        // ✅ Seguridad por sede: el admin solo puede emitir para su plantel
+        if (alumno.getPlantel() == null) {
+            throw new IllegalArgumentException("El alumno no tiene plantel asignado.");
+        }
+        if (!alumno.getPlantel().equals(plantelId)) {
+            throw new IllegalStateException("El alumno no pertenece a tu plantel.");
+            // si prefieres: ResponseStatusException(HttpStatus.FORBIDDEN, ...)
+        }
 
         String concepto = req.concepto().trim().toUpperCase();
         LocalDate hoy = LocalDate.now();
@@ -80,21 +88,16 @@ public class ReciboServiceImpl implements ReciboService {
         CatTipoPago tipoPago = tipoPagoRepo.findById(req.tipoPagoId())
                 .orElseThrow(() -> new IllegalArgumentException("No existe tipo de pago con id: " + req.tipoPagoId()));
 
-        // Si tu CatTipoPago no tiene active, quita este bloque
         if (tipoPago.getActive() != null && !Boolean.TRUE.equals(tipoPago.getActive())) {
             throw new IllegalArgumentException("El tipo de pago seleccionado está inactivo.");
         }
 
-        String folio = generarFolioSimple(); // si luego lo hacemos PRO con seq+lock lo cambiamos
+        String folio = generarFolioSimple(); // luego lo cambiamos por seq por plantel si quieres
 
-        // 1) Construimos QR payload con timestamp + firma
         LocalDateTime ts = LocalDateTime.now();
         String qrPayload = construirQrPayload(folio, alumno.getId(), concepto, monto, fechaPago, ts);
-
-        // 2) Guardamos también el hash (por si quieres doble-check o auditoría)
         String qrHash = extraerFirmaDePayload(qrPayload);
 
-        // 3) Generamos el PNG y guardamos en disco; sólo guardamos el nombre en BD
         String qrFileName = qrCodeService.generarYGuardarQr(folio, qrPayload);
 
         Recibo r = new Recibo();
@@ -108,6 +111,9 @@ public class ReciboServiceImpl implements ReciboService {
         r.setEstatus(pagado);
         r.setTipoPago(tipoPago);
 
+        // ✅ Guardar sede/plantel
+        r.setPlantelId(plantelId);
+
         r.setQrPayload(qrPayload);
         r.setQrHash(qrHash);
         r.setQrFileName(qrFileName);
@@ -119,6 +125,8 @@ public class ReciboServiceImpl implements ReciboService {
 
         return toRes(reciboRepo.save(r));
     }
+
+
 
     @Override
     @Transactional(readOnly = true)
@@ -152,8 +160,14 @@ public class ReciboServiceImpl implements ReciboService {
         if (reciboId == null) throw new IllegalArgumentException("El campo 'reciboId' es obligatorio.");
         validarTexto(motivo, "motivo");
 
+        Integer plantelId = currentPlantelId();
+
         Recibo r = reciboRepo.findById(reciboId)
                 .orElseThrow(() -> new IllegalArgumentException("No existe recibo con id: " + reciboId));
+
+        if (r.getPlantelId() == null || !r.getPlantelId().equals(plantelId)) {
+            throw new IllegalStateException("No puedes cancelar recibos de otro plantel.");
+        }
 
         CatEstatusRecibo cancelado = estatusRepo.findByCodigo(ESTATUS_CANCELADO)
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -167,6 +181,7 @@ public class ReciboServiceImpl implements ReciboService {
 
         return toRes(reciboRepo.save(r));
     }
+
 
     // -------------------------
     // Helpers
@@ -261,6 +276,7 @@ public class ReciboServiceImpl implements ReciboService {
         return new ReciboRes(
                 r.getId(),
                 r.getFolio(),
+                r.getFolioLegacy(),
                 r.getFechaEmision(),
                 r.getFechaPago(),
                 alumno != null ? alumno.getId() : null,
@@ -283,4 +299,17 @@ public class ReciboServiceImpl implements ReciboService {
             throw new IllegalArgumentException("El campo '" + campo + "' es obligatorio.");
         }
     }
+
+    private Integer currentPlantelId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName(); // funciona con UserDetails estándar
+
+        AppUser user = appUserRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalStateException("Usuario no encontrado: " + username));
+
+        if (user.getPlantel() == null) throw new IllegalStateException("Usuario sin plantel.");
+        return user.getPlantel().getId();
+    }
+
+
 }
