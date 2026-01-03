@@ -1,26 +1,32 @@
 server:
-  port: 8000
+  port: ${APP_PORT:8000}
+
 spring:
   application:
     name: usyc-services
+
   datasource:
-    url: jdbc:postgresql://localhost:5438/USYC_DB
-    username: postgres
-    password: 291000
+    url: ${DB_URL:jdbc:postgresql://localhost:5438/USYC_DB}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:291000}
     driver-class-name: org.postgresql.Driver
+
 springdoc:
   swagger-ui:
-    path: /swagger
+    path: ${SWAGGER_UI_PATH:/swagger}
   api-docs:
-    path: /api-docs
+    path: ${SWAGGER_API_DOCS_PATH:/api-docs}
+
 app:
   storage:
-    qr-dir: ${QR_DIR:C:\usyc\qr}
+    qr-dir: ${QR_DIR:/var/usyc/qr}
+
   security:
     jwt:
-      secret: "CAMBIA_ESTA_CLAVE_LARGA_LARGA_LARGA_32+_CHARS_MIN"
-      minutes: 480
+      secret: ${JWT_SECRET:CAMBIA_ESTA_CLAVE_LARGA_LARGA_LARGA_32+_CHARS_MIN}
+      minutes: ${JWT_MINUTES:480}
+
     cookie:
-      name: "JWT"
-      same-site: "Lax"   # Lax para swagger y navegación normal
-      secure: false      # en local false; en prod true (HTTPS)
+      name: ${JWT_COOKIE_NAME:JWT}
+      same-site: ${JWT_COOKIE_SAMESITE:Lax}
+      secure: ${JWT_COOKIE_SECURE:false}
