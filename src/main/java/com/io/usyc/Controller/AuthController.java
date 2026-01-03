@@ -6,6 +6,7 @@ import com.io.usyc.Dto.AuthLoginReq;
 import com.io.usyc.Dto.AuthLoginRes;
 import com.io.usyc.Dto.AuthUserRes;
 import com.io.usyc.Repository.AppUserRepository;
+import com.io.usyc.Service.SecurityUserDetails;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpHeaders;
@@ -70,14 +71,21 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<AuthUserRes> me(@AuthenticationPrincipal UserDetails principal) {
-        if (principal == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado");
+    public ResponseEntity<AuthUserRes> me(@AuthenticationPrincipal SecurityUserDetails principal) {
+        if (principal == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado");
+        }
 
-        AppUser user = userRepo.findByUsernameWithRoles(principal.getUsername())
+        // Ya traes al user dentro del principal
+        AppUser user = principal.getUser();
+
+        // opcional: si quieres garantizar roles por JOIN FETCH
+        user = userRepo.findByUsernameWithRoles(user.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
 
         return ResponseEntity.ok(toUserRes(user));
     }
+
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {

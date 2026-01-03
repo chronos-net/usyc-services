@@ -60,10 +60,10 @@ public class ReciboServiceImpl implements ReciboService {
             throw new IllegalArgumentException("El campo 'tipoPagoId' es obligatorio.");
         }
 
-        Integer plantelId = currentPlantelId();
 
         Alumno alumno = alumnoRepo.findById(req.alumnoId().trim())
                 .orElseThrow(() -> new IllegalArgumentException("No existe alumno con id: " + req.alumnoId()));
+        Integer plantelId = alumno.getPlantel().getId();
 
         // ✅ Seguridad por sede: el admin solo puede emitir para su plantel
         if (alumno.getPlantel() == null) {
@@ -160,14 +160,9 @@ public class ReciboServiceImpl implements ReciboService {
         if (reciboId == null) throw new IllegalArgumentException("El campo 'reciboId' es obligatorio.");
         validarTexto(motivo, "motivo");
 
-        Integer plantelId = currentPlantelId();
 
         Recibo r = reciboRepo.findById(reciboId)
                 .orElseThrow(() -> new IllegalArgumentException("No existe recibo con id: " + reciboId));
-
-        if (r.getPlantelId() == null || !r.getPlantelId().equals(plantelId)) {
-            throw new IllegalStateException("No puedes cancelar recibos de otro plantel.");
-        }
 
         CatEstatusRecibo cancelado = estatusRepo.findByCodigo(ESTATUS_CANCELADO)
                 .orElseThrow(() -> new IllegalArgumentException(
