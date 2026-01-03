@@ -2,6 +2,7 @@ package com.io.usyc.Controller;
 
 import com.io.usyc.Dto.AlumnoListItemRes;
 import com.io.usyc.Service.AlumnoCatalogoService;
+import com.io.usyc.Service.SecurityUserDetails;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -12,6 +13,7 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -42,8 +44,12 @@ public class AlumnoCatalogoController {
     })
     @GetMapping
     public ResponseEntity<Page<AlumnoListItemRes>> listar(
-            @ParameterObject Pageable pageable
+            @ParameterObject Pageable pageable,
+            @AuthenticationPrincipal Object principal
     ) {
-        return ResponseEntity.ok(alumnoCatalogoService.listar(pageable));
+        SecurityUserDetails sud = (SecurityUserDetails) principal;
+        return ResponseEntity.ok(alumnoCatalogoService.listar(pageable, sud));
     }
+
+
 }

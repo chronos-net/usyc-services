@@ -3,6 +3,7 @@ package com.io.usyc.Controller;
 import com.io.usyc.Dto.AlumnoPagosResumenRes;
 import com.io.usyc.Dto.ReciboRes;
 import com.io.usyc.Service.AlumnoPagosService;
+import com.io.usyc.Service.SecurityUserDetails;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.media.Content;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -51,9 +53,12 @@ public class AlumnoPagosController {
             @ApiResponse(responseCode = "200", description = "OK")
     })
     @GetMapping("/filter")
-    public ResponseEntity<List<ReciboRes>> obtenerPagos() {
-        return ResponseEntity.ok(alumnoPagosService.obtenerPagos());
+    public ResponseEntity<List<ReciboRes>> obtenerPagos(
+            @AuthenticationPrincipal SecurityUserDetails principal
+    ) {
+        return ResponseEntity.ok(alumnoPagosService.obtenerPagos(principal));
     }
+
 
 }
 

@@ -8,5 +8,5 @@ import java.util.List;
 public interface AlumnoPagosService {
     AlumnoPagosResumenRes obtenerResumen(String alumnoId);
 
-    List<ReciboRes> obtenerPagos();
+    List<ReciboRes> obtenerPagos(SecurityUserDetails securityUserDetails);
 }

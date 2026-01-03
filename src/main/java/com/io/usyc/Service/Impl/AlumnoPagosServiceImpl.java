@@ -9,6 +9,7 @@ import com.io.usyc.Repository.AlumnoRepository;
 import com.io.usyc.Repository.AppUserRepository;
 import com.io.usyc.Repository.ReciboRepository;
 import com.io.usyc.Service.AlumnoPagosService;
+import com.io.usyc.Service.SecurityUserDetails;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -132,12 +133,17 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ReciboRes> obtenerPagos() {
-        Integer plantelId = currentUserPlantelIdOrNull();
+    public List<ReciboRes> obtenerPagos(SecurityUserDetails principal) {
+
+        Integer plantelId = (principal.getUser().getPlantel() == null)
+                ? null
+                : principal.getUser().getPlantel().getId();
+
         return reciboRepo.findAllVisible(plantelId).stream()
-                .map(this::toRes)     // ✅ aquí sí existe porque estás en la misma clase
+                .map(this::toRes)
                 .toList();
     }
+
     private static final String ESTATUS_CANCELADO = "CANCELADO";
 
     private ReciboRes toRes(Recibo r) {

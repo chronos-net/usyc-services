@@ -5,6 +5,7 @@ import com.io.usyc.Dto.AlumnoListItemRes;
 import com.io.usyc.Repository.AlumnoRepository;
 import com.io.usyc.Repository.AppUserRepository;
 import com.io.usyc.Service.AlumnoCatalogoService;
+import com.io.usyc.Service.SecurityUserDetails;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,8 +25,11 @@ public class AlumnoCatalogoServiceImpl implements AlumnoCatalogoService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<AlumnoListItemRes> listar(Pageable pageable) {
-        Integer plantelId = currentUserPlantelIdOrNull();
+    public Page<AlumnoListItemRes> listar(Pageable pageable, SecurityUserDetails principal) {
+
+        Integer plantelId = principal.getUser().getPlantel() == null
+                ? null
+                : principal.getUser().getPlantel().getId();
 
         Page<Alumno> page = (plantelId == null)
                 ? alumnoRepo.findAll(pageable)
@@ -33,6 +37,8 @@ public class AlumnoCatalogoServiceImpl implements AlumnoCatalogoService {
 
         return page.map(this::toListItem);
     }
+
+
 
     private Integer currentUserPlantelIdOrNull() {
         var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();

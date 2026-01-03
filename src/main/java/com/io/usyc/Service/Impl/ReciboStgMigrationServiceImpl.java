@@ -97,7 +97,7 @@ public class ReciboStgMigrationServiceImpl implements ReciboStgMigrationService 
           ? AS alumno_id,
 
           -- ✅ plantel sale del alumno
-          a.plantel_id AS plantel_id,
+          s.plantel_id AS plantel_id,
 
           LEFT(TRIM(s.concepto), 180) AS concepto,
 
