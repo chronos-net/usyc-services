@@ -59,8 +59,10 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         // IMPORTANTE: si usas cookies/JWT httpOnly o Authorization con credenciales -> no puede ser "*"
-        config.setAllowedOrigins(List.of("http://localhost:3000"));
-
+        config.setAllowedOrigins(List.of(
+                "http://usyc.site",
+                "https://usyc.site"
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With"));
         config.setExposedHeaders(List.of("Set-Cookie")); // opcional, útil si inspeccionas cookies
