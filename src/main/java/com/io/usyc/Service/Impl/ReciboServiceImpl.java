@@ -69,10 +69,6 @@ public class ReciboServiceImpl implements ReciboService {
         if (alumno.getPlantel() == null) {
             throw new IllegalArgumentException("El alumno no tiene plantel asignado.");
         }
-        if (!alumno.getPlantel().equals(plantelId)) {
-            throw new IllegalStateException("El alumno no pertenece a tu plantel.");
-            // si prefieres: ResponseStatusException(HttpStatus.FORBIDDEN, ...)
-        }
 
         String concepto = req.concepto().trim().toUpperCase();
         LocalDate hoy = LocalDate.now();
