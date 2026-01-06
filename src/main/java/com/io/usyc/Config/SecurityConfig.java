@@ -61,9 +61,9 @@ public class SecurityConfig {
         // IMPORTANTE: si usas cookies/JWT httpOnly o Authorization con credenciales -> no puede ser "*"
         config.setAllowedOrigins(List.of(
                 "http://usyc.site",
-                "https://usyc.site"
+                "https://usyc.site","https://localhost:3000","http://localhost:3000"
         ));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS","PATCH"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With"));
         config.setExposedHeaders(List.of("Set-Cookie")); // opcional, útil si inspeccionas cookies
         config.setAllowCredentials(true);
