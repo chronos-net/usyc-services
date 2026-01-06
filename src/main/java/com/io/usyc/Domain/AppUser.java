@@ -50,6 +50,19 @@ public class AppUser {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plantel_id")
     private CatPlantel plantel;
+    // dentro de AppUser
+    @PrePersist
+    public void prePersist() {
+        var now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+        if (this.active == false) this.active = true; // por si acaso
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 
 
 
