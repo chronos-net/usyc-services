@@ -4,6 +4,7 @@ import com.io.usyc.Domain.AppUser;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
@@ -25,6 +26,9 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     boolean existsByAlumnoId(String alumnoId);
 
     Optional<AppUser> findByEmail(String email);
+
+    @EntityGraph(attributePaths = {"userRoles", "userRoles.role", "plantel"})
+    List<AppUser> findAll(org.springframework.data.jpa.domain.Specification<AppUser> spec);
 
 }
 

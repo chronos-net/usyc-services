@@ -3,6 +3,7 @@ package com.io.usyc.Controller;
 import com.io.usyc.Dto.PasswordChangeReq;
 import com.io.usyc.Dto.UserCreateReq;
 import com.io.usyc.Dto.UserCreateRes;
+import com.io.usyc.Dto.UserListItemRes;
 import com.io.usyc.Service.UserAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -16,6 +17,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/users")
@@ -116,7 +119,6 @@ public class UserAdminController {
                             schema = @Schema(implementation = PasswordChangeReq.class),
                             examples = @ExampleObject(name = "Ejemplo cambio", value = """
                             {
-                              "currentPassword": "OldPass123!",
                               "newPassword": "NewPass123!"
                             }
                             """)
@@ -126,5 +128,26 @@ public class UserAdminController {
     ) {
         service.changePassword(userId, req);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Listar usuarios",
+            description = "Lista usuarios con filtros opcionales (plantel, activo, rol y búsqueda)."
+    )
+    @GetMapping(produces = "application/json")
+    public ResponseEntity<List<UserListItemRes>> list(
+            @Parameter(description = "Filtrar por plantelId", example = "3")
+            @RequestParam(required = false) Integer plantelId,
+
+            @Parameter(description = "Filtrar por activo (true/false)", example = "true")
+            @RequestParam(required = false) Boolean active,
+
+            @Parameter(description = "Filtrar por código de rol (ej: ADMIN, USER)", example = "ADMIN")
+            @RequestParam(required = false) String roleCode,
+
+            @Parameter(description = "Búsqueda por username/email/fullName/alumnoId", example = "alfred")
+            @RequestParam(required = false) String q
+    ) {
+        return ResponseEntity.ok(service.listUsers(plantelId, active, roleCode, q));
     }
 }

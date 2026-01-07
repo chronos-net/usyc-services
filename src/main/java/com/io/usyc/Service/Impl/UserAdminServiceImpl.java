@@ -4,15 +4,19 @@ import com.io.usyc.Domain.*;
 import com.io.usyc.Dto.PasswordChangeReq;
 import com.io.usyc.Dto.UserCreateReq;
 import com.io.usyc.Dto.UserCreateRes;
+import com.io.usyc.Dto.UserListItemRes;
 import com.io.usyc.Exception.BadRequestException;
 import com.io.usyc.Exception.NotFoundException;
 import com.io.usyc.Repository.*;
 import com.io.usyc.Service.UserAdminService;
+import com.io.usyc.Utils.AppUserSpecs;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -93,22 +97,58 @@ public class UserAdminServiceImpl implements UserAdminService {
     public void changePassword(Long userId, PasswordChangeReq req) {
         if (userId == null) throw new BadRequestException("userId es requerido.");
         if (req == null) throw new BadRequestException("Body es requerido.");
-        if (isBlank(req.currentPassword())) throw new BadRequestException("currentPassword es requerido.");
+        //if (isBlank(req.currentPassword())) throw new BadRequestException("currentPassword es requerido.");
         if (isBlank(req.newPassword())) throw new BadRequestException("newPassword es requerido.");
         if (req.newPassword().length() < 8) throw new BadRequestException("La nueva contraseña debe tener al menos 8 caracteres.");
-        if (req.newPassword().equals(req.currentPassword())) throw new BadRequestException("La nueva contraseña no puede ser igual a la actual.");
+        //if (req.newPassword().equals(req.currentPassword())) throw new BadRequestException("La nueva contraseña no puede ser igual a la actual.");
 
         AppUser user = userRepo.findById(userId)
                 .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + userId));
 
-        if (!passwordEncoder.matches(req.currentPassword(), user.getPasswordHash())) {
+        /*if (!passwordEncoder.matches(req.currentPassword(), user.getPasswordHash())) {
             throw new BadRequestException("La contraseña actual no es válida.");
-        }
+        }*/
 
         user.setPasswordHash(passwordEncoder.encode(req.newPassword()));
         userRepo.save(user);
     }
 
+    @Override
+    public List<UserListItemRes> listUsers(Integer plantelId, Boolean active, String roleCode, String q) {
+
+        Specification<AppUser> spec = Specification.allOf(
+                AppUserSpecs.plantelId(plantelId),
+                AppUserSpecs.active(active),
+                AppUserSpecs.roleCode(roleCode),
+                AppUserSpecs.search(q)
+        );
+
+        return userRepo.findAll(spec).stream()
+                .map(this::toListItem)
+                .toList();
+    }
+    private UserListItemRes toListItem(AppUser u) {
+        Set<String> roles = (u.getUserRoles() == null) ? Set.of() :
+                u.getUserRoles().stream()
+                        .map(ur -> ur.getRole() != null ? ur.getRole().getCode() : null)
+                        .filter(r -> r != null && !r.isBlank())
+                        .collect(Collectors.toSet());
+
+        Integer plantelId = (u.getPlantel() != null) ? u.getPlantel().getId() : null;
+
+        return new UserListItemRes(
+                u.getUserId(),
+                u.getEmail(),
+                u.getUsername(),
+                u.getFullName(),
+                u.isActive(),
+                u.getAlumnoId(),
+                plantelId,
+                roles,
+                u.getLastLoginAt(),
+                u.getCreatedAt()
+        );
+    }
     private void validateCreateReq(UserCreateReq req) {
         if (req == null) throw new BadRequestException("Body es requerido.");
         if (isBlank(req.username())) throw new BadRequestException("username es requerido.");
