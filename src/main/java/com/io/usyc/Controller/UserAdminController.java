@@ -1,9 +1,6 @@
 package com.io.usyc.Controller;
 
-import com.io.usyc.Dto.PasswordChangeReq;
-import com.io.usyc.Dto.UserCreateReq;
-import com.io.usyc.Dto.UserCreateRes;
-import com.io.usyc.Dto.UserListItemRes;
+import com.io.usyc.Dto.*;
 import com.io.usyc.Service.UserAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -149,5 +146,19 @@ public class UserAdminController {
             @RequestParam(required = false) String q
     ) {
         return ResponseEntity.ok(service.listUsers(plantelId, active, roleCode, q));
+    }
+
+    @Operation(summary = "Actualizar usuario", description = "Actualiza datos del usuario (email/username/fullName/alumnoId/active/plantel). No cambia contraseña.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Usuario actualizado"),
+            @ApiResponse(responseCode = "400", description = "Validación/duplicado", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Usuario/Plantel no encontrado", content = @Content)
+    })
+    @PutMapping(value = "/update/{userId}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<UserRes> update(
+            @Parameter(example = "10") @PathVariable Long userId,
+            @RequestBody UserUpdateReq req
+    ) {
+        return ResponseEntity.ok(service.updateUser(userId, req));
     }
 }

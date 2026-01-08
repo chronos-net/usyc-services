@@ -2,6 +2,7 @@ package com.io.usyc.Controller;
 
 import com.io.usyc.Dto.AlumnoCreateReq;
 import com.io.usyc.Dto.AlumnoRes;
+import com.io.usyc.Dto.AlumnoUpdateReq;
 import com.io.usyc.Service.AlumnoService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.Parameter;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -54,5 +56,18 @@ public class AlumnoController {
             @PathVariable String alumnoId
     ) {
         return ResponseEntity.ok(alumnoService.obtener(alumnoId));
+    }
+
+
+    @Operation(summary = "Actualizar alumno", description = "Actualiza la información del alumno (sin cambiar el alumno_id).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Alumno actualizado"),
+            @ApiResponse(responseCode = "400", description = "Validación/duplicado", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Alumno / catálogo no encontrado", content = @Content)
+    })
+    @PutMapping(value = "/update/{alumnoId}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<AlumnoRes> actualizar(@PathVariable String alumnoId,
+                                                @RequestBody AlumnoUpdateReq req) {
+        return ResponseEntity.ok(alumnoService.actualizar(alumnoId, req));
     }
 }

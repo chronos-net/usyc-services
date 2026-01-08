@@ -1,10 +1,7 @@
 package com.io.usyc.Service.Impl;
 
 import com.io.usyc.Domain.*;
-import com.io.usyc.Dto.PasswordChangeReq;
-import com.io.usyc.Dto.UserCreateReq;
-import com.io.usyc.Dto.UserCreateRes;
-import com.io.usyc.Dto.UserListItemRes;
+import com.io.usyc.Dto.*;
 import com.io.usyc.Exception.BadRequestException;
 import com.io.usyc.Exception.NotFoundException;
 import com.io.usyc.Repository.*;
@@ -172,5 +169,92 @@ public class UserAdminServiceImpl implements UserAdminService {
         if (isBlank(s)) throw new BadRequestException(field + " es requerido.");
         return s.trim();
     }
+
+    @Override
+    public UserRes updateUser(Long userId, UserUpdateReq req) {
+        if (userId == null) throw new BadRequestException("userId es requerido.");
+        if (req == null) throw new BadRequestException("Body es requerido.");
+
+        AppUser user = userRepo.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + userId));
+
+        // email
+        if (req.email() != null) {
+            String email = nullIfBlank(req.email());
+            if (email != null && !email.equalsIgnoreCase(user.getEmail()) && userRepo.existsByEmail(email)) {
+                throw new BadRequestException("El email ya está registrado.");
+            }
+            user.setEmail(email);
+        }
+
+        // username
+        if (req.username() != null) {
+            String username = requiredTrim(req.username(), "username");
+            if (!username.equalsIgnoreCase(user.getUsername()) && userRepo.existsByUsername(username)) {
+                throw new BadRequestException("El username ya está registrado.");
+            }
+            user.setUsername(username);
+        }
+
+        // fullName
+        if (req.fullName() != null) {
+            user.setFullName(nullIfBlank(req.fullName()));
+        }
+
+        // alumnoId
+        if (req.alumnoId() != null) {
+            String alumnoId = nullIfBlank(req.alumnoId());
+            if (alumnoId != null && alumnoId.length() != 9) {
+                throw new BadRequestException("alumnoId debe tener 9 caracteres.");
+            }
+            if (alumnoId != null && !alumnoId.equals(user.getAlumnoId()) && userRepo.existsByAlumnoId(alumnoId)) {
+                throw new BadRequestException("El alumnoId ya está registrado.");
+            }
+            user.setAlumnoId(alumnoId);
+        }
+
+        // active
+        if (req.active() != null) {
+            user.setActive(req.active());
+        }
+
+        // plantel
+        if (req.plantelId() != null) {
+            CatPlantel plantel = plantelRepo.findById(req.plantelId())
+                    .orElseThrow(() -> new NotFoundException("Plantel no encontrado: " + req.plantelId()));
+            user.setPlantel(plantel);
+        }
+
+        // Dirty checking: no necesitas save, pero se vale dejarlo
+        user = userRepo.save(user);
+
+        return toRes(user);
+    }
+
+    private UserRes toRes(AppUser u) {
+        Set<String> roles = (u.getUserRoles() == null) ? Set.of() :
+                u.getUserRoles().stream()
+                        .map(ur -> ur.getRole() != null ? ur.getRole().getCode() : null)
+                        .filter(r -> r != null && !r.isBlank())
+                        .collect(Collectors.toSet());
+
+        Integer plantelId = u.getPlantel() != null ? u.getPlantel().getId() : null;
+
+        return new UserRes(
+                u.getUserId(),
+                u.getEmail(),
+                u.getUsername(),
+                u.getFullName(),
+                u.isActive(),
+                u.getAlumnoId(),
+                plantelId,
+                roles,
+                u.getLastLoginAt(),
+                u.getCreatedAt(),
+                u.getUpdatedAt()
+        );
+    }
+
+
 }
 

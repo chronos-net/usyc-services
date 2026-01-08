@@ -3,6 +3,9 @@ package com.io.usyc.Service.Impl;
 import com.io.usyc.Domain.*;
 import com.io.usyc.Dto.AlumnoCreateReq;
 import com.io.usyc.Dto.AlumnoRes;
+import com.io.usyc.Dto.AlumnoUpdateReq;
+import com.io.usyc.Exception.BadRequestException;
+import com.io.usyc.Exception.NotFoundException;
 import com.io.usyc.Repository.*;
 import com.io.usyc.Service.AlumnoService;
 import com.io.usyc.Service.ReciboStgMigrationService;
@@ -202,5 +205,99 @@ public class AlumnoServiceImpl implements AlumnoService {
     private static String normalizarCarreraId(String v) {
         validarCarreraId(v);
         return String.format("%02d", Integer.parseInt(v.trim()));
+    }
+
+
+
+
+
+    @Override
+    public AlumnoRes actualizar(String alumnoId, AlumnoUpdateReq req) {
+        if (alumnoId == null || alumnoId.trim().isEmpty()) throw new BadRequestException("alumnoId es requerido.");
+        if (req == null) throw new BadRequestException("Body es requerido.");
+
+        Alumno a = alumnoRepo.findById(alumnoId)
+                .orElseThrow(() -> new NotFoundException("Alumno no encontrado: " + alumnoId));
+
+        // nombreCompleto
+        if (req.nombreCompleto() != null) {
+            String nc = requiredTrim(req.nombreCompleto(), "nombreCompleto");
+            a.setNombreCompleto(nc);
+        }
+
+        // matricula (única)
+        if (req.matricula() != null) {
+            String m = nullIfBlank(req.matricula());
+            if (m != null && !m.equals(a.getMatricula()) && alumnoRepo.existsByMatricula(m)) {
+                throw new BadRequestException("La matrícula ya está registrada.");
+            }
+            a.setMatricula(m);
+        }
+
+        // escolaridad
+        if (req.escolaridadId() != null) {
+            CatEscolaridad e = escolaridadRepo.findById(req.escolaridadId())
+                    .orElseThrow(() -> new NotFoundException("Escolaridad no encontrada: " + req.escolaridadId()));
+            a.setEscolaridad(e);
+        }
+
+        // carrera
+        if (req.carreraId() != null) {
+            CatCarrera c = carreraRepo.findById(req.carreraId())
+                    .orElseThrow(() -> new NotFoundException("Carrera no encontrada: " + req.carreraId()));
+            a.setCarrera(c);
+        }
+
+        // fechas
+        if (req.fechaIngreso() != null) a.setFechaIngreso(req.fechaIngreso());
+        if (req.fechaTermino() != null) a.setFechaTermino(req.fechaTermino());
+
+        // activo
+        if (req.activo() != null) a.setActivo(req.activo());
+
+        // plantel
+        if (req.plantelId() != null) {
+            CatPlantel p = plantelRepo.findById(req.plantelId())
+                    .orElseThrow(() -> new NotFoundException("Plantel no encontrado: " + req.plantelId()));
+            a.setPlantel(p);
+        }
+
+        // Save opcional (dirty checking también funciona)
+        a = alumnoRepo.save(a);
+
+        // Para respuesta con relaciones cargadas
+        Alumno full = alumnoRepo.findWithRefsById(a.getId()).orElse(a);
+        return toRes(full);
+    }
+
+    private AlumnoRes toRes(Alumno a) {
+        var e = a.getEscolaridad();
+        var c = a.getCarrera();
+        var p = a.getPlantel();
+
+        return new AlumnoRes(
+                a.getId(),
+                a.getNombreCompleto(),
+                a.getMatricula(),
+                e != null ? e.getId() : null,
+                e != null ? e.getNombre() : null,
+                c != null ? c.getId() : null,
+                c != null ? c.getNombre() : null,
+                p != null ? p.getId() : null,
+                p != null ? p.getName() : null,
+                a.getFechaIngreso(),
+                a.getActivo(),null
+        );
+    }
+
+    private String nullIfBlank(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private String requiredTrim(String s, String field) {
+        if (s == null || s.trim().isEmpty()) throw new BadRequestException(field + " es requerido.");
+        return s.trim();
     }
 }

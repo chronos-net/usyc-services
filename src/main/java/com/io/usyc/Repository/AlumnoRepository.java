@@ -6,6 +6,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Optional;
+
 public interface AlumnoRepository extends JpaRepository<Alumno, String> {
     boolean existsByMatricula(String matricula);
 
@@ -15,4 +17,6 @@ public interface AlumnoRepository extends JpaRepository<Alumno, String> {
     @EntityGraph(attributePaths = {"escolaridad", "carrera"})
     Page<Alumno> findByPlantel_Id(Integer plantelId, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"escolaridad", "carrera", "plantel"})
+    Optional<Alumno> findWithRefsById(String id);
 }

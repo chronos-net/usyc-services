@@ -30,5 +30,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     @EntityGraph(attributePaths = {"userRoles", "userRoles.role", "plantel"})
     List<AppUser> findAll(org.springframework.data.jpa.domain.Specification<AppUser> spec);
 
+
+
 }
 
