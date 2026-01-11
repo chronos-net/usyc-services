@@ -74,7 +74,7 @@ public class ReciboServiceImpl implements ReciboService {
         LocalDate hoy = LocalDate.now();
         LocalDate fechaPago = (req.fechaPago() == null ? hoy : req.fechaPago());
 
-        BigDecimal monto = resolverMonto(concepto, alumno.getCarrera(), req.montoManual());
+        //BigDecimal monto = resolverMonto(concepto, alumno.getCarrera(), req.montoManual());
 
         CatEstatusRecibo pagado = estatusRepo.findByCodigo(ESTATUS_PAGADO)
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -91,7 +91,7 @@ public class ReciboServiceImpl implements ReciboService {
         String folio = generarFolioSimple(); // luego lo cambiamos por seq por plantel si quieres
 
         LocalDateTime ts = LocalDateTime.now();
-        String qrPayload = construirQrPayload(folio, alumno.getId(), concepto, monto, fechaPago, ts);
+        String qrPayload = construirQrPayload(folio, alumno.getId(), concepto, req.montoManual(), fechaPago, ts);
         String qrHash = extraerFirmaDePayload(qrPayload);
 
         String qrFileName = qrCodeService.generarYGuardarQr(folio, qrPayload);
@@ -102,7 +102,7 @@ public class ReciboServiceImpl implements ReciboService {
         r.setFechaPago(fechaPago);
         r.setAlumno(alumno);
         r.setConcepto(concepto);
-        r.setMonto(monto);
+        r.setMonto(req.montoManual());
         r.setMoneda(MONEDA_DEFAULT);
         r.setEstatus(pagado);
         r.setTipoPago(tipoPago);
