@@ -64,7 +64,10 @@ public class CarreraController {
         return ResponseEntity.ok(carreraService.obtener(carreraId));
     }
 
-    @Operation(summary = "Crear carrera", description = "Crea una nueva carrera, vinculada a una escolaridad, con montos de inscripción y mensualidad.")
+    @Operation(
+            summary = "Crear carrera",
+            description = "Crea una nueva carrera vinculada a una escolaridad, configurando N conceptos con monto y cantidad para proyección."
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Carrera creada correctamente"),
             @ApiResponse(responseCode = "400", description = "Datos inválidos o id duplicado", content = @Content)

@@ -11,13 +11,9 @@ public record AlumnoPagosResumenRes(
         String carreraNombre,
         LocalDate fechaIngreso,
         LocalDate fechaTermino,
-        BigDecimal montoMensual,
-        BigDecimal montoInscripcion,
-
         BigDecimal totalPagado,
         BigDecimal totalProyectado,
         BigDecimal saldoPendiente,
-
         List<ReciboRes> pagosReales,
         List<PagoProyectadoRes> proyeccion
 ) {}

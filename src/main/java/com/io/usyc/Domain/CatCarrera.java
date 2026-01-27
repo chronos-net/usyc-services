@@ -3,7 +3,6 @@ package com.io.usyc.Domain;
 import jakarta.persistence.*;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,20 +23,11 @@ public class CatCarrera {
     @Column(name = "nombre", nullable = false, length = 120)
     private String nombre;
 
-    @Column(name = "monto_mensual", nullable = false, precision = 12, scale = 2)
-    private BigDecimal montoMensual;
-
-    @Column(name = "monto_inscripcion", nullable = false, precision = 12, scale = 2)
-    private BigDecimal montoInscripcion;
-
     @Column(name = "activo", nullable = false)
     private Boolean activo = true;
 
     @Column(name = "creado_en", nullable = false)
     private LocalDateTime creadoEn;
-
-    @OneToMany(mappedBy = "carrera", fetch = FetchType.LAZY)
-    private List<Alumno> alumnos = new ArrayList<>();
 
     @Column(name = "duracion_anios", nullable = false)
     private Integer duracionAnios = 0;
@@ -45,10 +35,14 @@ public class CatCarrera {
     @Column(name = "duracion_meses", nullable = false)
     private Integer duracionMeses = 0;
 
+    @OneToMany(mappedBy = "carrera", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CarreraConceptoConfig> conceptosConfig = new ArrayList<>();
+
+    @OneToMany(mappedBy = "carrera", fetch = FetchType.LAZY)
+    private List<Alumno> alumnos = new ArrayList<>();
+
     @PrePersist
     void prePersist() {
         if (creadoEn == null) creadoEn = LocalDateTime.now();
     }
-
-    // getters/setters
 }

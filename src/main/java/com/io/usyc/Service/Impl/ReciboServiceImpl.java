@@ -178,20 +178,6 @@ public class ReciboServiceImpl implements ReciboService {
     // Helpers
     // -------------------------
 
-    private BigDecimal resolverMonto(String concepto, CatCarrera carrera, BigDecimal montoManual) {
-        if (carrera == null) throw new IllegalArgumentException("El alumno no tiene carrera asignada.");
-
-        return switch (concepto) {
-            case "INSCRIPCION" -> carrera.getMontoInscripcion();
-            case "MENSUALIDAD" -> carrera.getMontoMensual();
-            case "OTRO" -> {
-                if (montoManual == null) throw new IllegalArgumentException("Para concepto OTRO es obligatorio 'montoManual'.");
-                if (montoManual.compareTo(BigDecimal.ZERO) < 0) throw new IllegalArgumentException("'montoManual' no puede ser negativo.");
-                yield montoManual;
-            }
-            default -> throw new IllegalArgumentException("Concepto inválido. Usa: INSCRIPCION, MENSUALIDAD u OTRO.");
-        };
-    }
 
     private String generarFolioSimple() {
         // Demo/local: REC-000001 (no es concurrente)

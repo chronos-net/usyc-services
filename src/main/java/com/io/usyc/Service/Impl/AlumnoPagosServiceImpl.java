@@ -1,12 +1,14 @@
 package com.io.usyc.Service.Impl;
 
 import com.io.usyc.Domain.Alumno;
+import com.io.usyc.Domain.CarreraConceptoConfig;
 import com.io.usyc.Domain.Recibo;
 import com.io.usyc.Dto.AlumnoPagosResumenRes;
 import com.io.usyc.Dto.PagoProyectadoRes;
 import com.io.usyc.Dto.ReciboRes;
 import com.io.usyc.Repository.AlumnoRepository;
 import com.io.usyc.Repository.AppUserRepository;
+import com.io.usyc.Repository.CarreraConceptoConfigRepository;
 import com.io.usyc.Repository.ReciboRepository;
 import com.io.usyc.Service.AlumnoPagosService;
 import com.io.usyc.Service.SecurityUserDetails;
@@ -30,6 +32,7 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
     private final AlumnoRepository alumnoRepo;
     private final ReciboRepository reciboRepo;
     @Autowired private AppUserRepository appUserRepository;
+    @Autowired private CarreraConceptoConfigRepository carreraConceptoRepo;
 
     public AlumnoPagosServiceImpl(AlumnoRepository alumnoRepo, ReciboRepository reciboRepo) {
         this.alumnoRepo = alumnoRepo;
@@ -38,6 +41,7 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
 
     @Override
     public AlumnoPagosResumenRes obtenerResumen(String alumnoId) {
+
         if (alumnoId == null || alumnoId.trim().isEmpty()) {
             throw new IllegalArgumentException("El campo 'alumnoId' es obligatorio.");
         }
@@ -50,11 +54,19 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
 
         LocalDate ingreso = alumno.getFechaIngreso() != null ? alumno.getFechaIngreso() : LocalDate.now();
 
-        // Si ya tienes fecha_termino guardada y quieres respetarla, úsala.
-        // Si no, la calculamos por duración.
         LocalDate termino = alumno.getFechaTermino();
         if (termino == null) {
             termino = calcularFechaTermino(ingreso, carrera.getDuracionAnios(), carrera.getDuracionMeses());
+        }
+
+        // Configs de carrera (conceptos)
+        List<CarreraConceptoConfig> configs = carreraConceptoRepo.findByCarrera_Id(carrera.getId())
+                .stream()
+                .filter(x -> Boolean.TRUE.equals(x.getActivo()))
+                .toList();
+
+        if (configs.isEmpty()) {
+            throw new IllegalArgumentException("La carrera no tiene conceptos configurados para proyección.");
         }
 
         // Pagos reales
@@ -66,40 +78,23 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Determinar meses que ya tienen "MENSUALIDAD" pagada
-        // (si tu concepto lo guardas como texto: r.getConcepto()).
-        // Si ya migraste a catálogo: r.getConceptoPago().getCodigo()
-        Set<YearMonth> mensualidadesPagadas = pagos.stream()
-                .filter(r -> r.getConcepto() != null && r.getConcepto().equalsIgnoreCase("MENSUALIDAD"))
-                .map(r -> YearMonth.from(r.getFechaPago() != null ? r.getFechaPago() : r.getFechaEmision()))
-                .collect(Collectors.toSet());
+        // Agrupar pagos reales por conceptoCodigo (tu Recibo hoy usa texto: r.getConcepto())
+        // Si luego migras a catálogo: r.getConceptoPago().getCodigo()
+        var pagosPorConcepto = pagos.stream()
+                .filter(r -> r.getConcepto() != null && !r.getConcepto().trim().isEmpty())
+                .collect(Collectors.groupingBy(
+                        r -> r.getConcepto().trim().toUpperCase(),
+                        Collectors.toList()
+                ));
 
-        // Proyección mensual
-        List<PagoProyectadoRes> proyeccionMensualidades = construirProyeccionMensualidades(
+        // Construir proyección completa desde configs
+        List<PagoProyectadoRes> proyeccion = construirProyeccionDesdeConfigs(
                 ingreso,
                 termino,
-                carrera.getMontoMensual(),
-                mensualidadesPagadas
+                configs,
+                pagosPorConcepto
         );
 
-        // Proyección inscripción (opcional): 1 sola vez al inicio
-        // Si quieres incluirlo, lo ponemos como item adicional.
-        boolean inscripcionPagada = pagos.stream()
-                .anyMatch(r -> r.getConcepto() != null && r.getConcepto().equalsIgnoreCase("INSCRIPCION"));
-
-        List<PagoProyectadoRes> proyeccion = new ArrayList<>();
-        // Inscripción: vencimiento = fechaIngreso (o fechaIngreso + 0)
-        proyeccion.add(new PagoProyectadoRes(
-                YearMonth.from(ingreso).toString(),
-                ingreso,
-                "INSCRIPCION",
-                carrera.getMontoInscripcion(),
-                inscripcionPagada ? "PAGADO" : "PENDIENTE"
-        ));
-
-        proyeccion.addAll(proyeccionMensualidades);
-
-        // Total proyectado = inscripción + todas las mensualidades
         BigDecimal totalProyectado = proyeccion.stream()
                 .map(PagoProyectadoRes::monto)
                 .filter(Objects::nonNull)
@@ -108,11 +103,11 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
         BigDecimal saldoPendiente = totalProyectado.subtract(totalPagado);
         if (saldoPendiente.compareTo(BigDecimal.ZERO) < 0) saldoPendiente = BigDecimal.ZERO;
 
-        // Map pagos reales a ReciboRes (si ya tienes toRes en tu ReciboService, reutilízalo)
         List<ReciboRes> pagosReales = pagos.stream()
                 .map(this::toReciboResSimple)
                 .toList();
 
+        // Ya no hay montoMensual / montoInscripcion
         return new AlumnoPagosResumenRes(
                 alumno.getId(),
                 alumno.getNombreCompleto(),
@@ -120,14 +115,96 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                 carrera.getNombre(),
                 ingreso,
                 termino,
-                carrera.getMontoMensual(),
-                carrera.getMontoInscripcion(),
                 totalPagado,
                 totalProyectado,
                 saldoPendiente,
                 pagosReales,
                 proyeccion
         );
+    }
+    private boolean esConceptoMensual(String conceptoCodigo) {
+        // AJUSTA A TU CATÁLOGO REAL:
+        // Puedes decidir que "COLEGIATURA" sea lo mensual en lugar de "MENSUALIDAD".
+        return conceptoCodigo.equalsIgnoreCase("COLEGIATURA")
+                || conceptoCodigo.equalsIgnoreCase("MENSUALIDAD");
+    }
+
+    private boolean existePagoEnPeriodo(List<Recibo> pagosConcepto, YearMonth periodo) {
+        return pagosConcepto.stream().anyMatch(r -> {
+            var fecha = (r.getFechaPago() != null) ? r.getFechaPago() : r.getFechaEmision();
+            if (fecha == null) return false;
+            return YearMonth.from(fecha).equals(periodo);
+        });
+    }
+
+    private List<PagoProyectadoRes> construirProyeccionDesdeConfigs(
+            LocalDate ingreso,
+            LocalDate termino,
+            List<CarreraConceptoConfig> configs,
+            Map<String, List<Recibo>> pagosPorConcepto
+    ) {
+
+        List<PagoProyectadoRes> out = new ArrayList<>();
+
+        for (CarreraConceptoConfig cfg : configs) {
+
+            String conceptoCodigo = cfg.getConcepto().getCodigo().trim().toUpperCase();
+            BigDecimal monto = cfg.getMonto();
+            int cantidad = cfg.getCantidad() != null ? cfg.getCantidad() : 0;
+
+            if (cantidad <= 0) continue;
+
+            // Pagos reales de ese concepto
+            List<Recibo> pagosConcepto = pagosPorConcepto.getOrDefault(conceptoCodigo, List.of());
+
+            // 1) Recurrentes mensuales (ej: COLEGIATURA)
+            if (esConceptoMensual(conceptoCodigo)) {
+
+                // Genera N meses a partir de ingreso (si termino limita, ajusta)
+                YearMonth ym = YearMonth.from(ingreso);
+                for (int i = 0; i < cantidad; i++) {
+                    YearMonth periodo = ym.plusMonths(i);
+
+                    LocalDate fechaVenc = periodo.atDay(Math.min(ingreso.getDayOfMonth(), periodo.lengthOfMonth()));
+
+                    // Si quieres cortar por termino (opcional):
+                    if (fechaVenc.isAfter(termino)) break;
+
+                    boolean pagado = existePagoEnPeriodo(pagosConcepto, periodo);
+
+                    out.add(new PagoProyectadoRes(
+                            periodo.toString(),
+                            fechaVenc,
+                            conceptoCodigo,
+                            monto,
+                            pagado ? "PAGADO" : "PENDIENTE"
+                    ));
+                }
+
+            } else {
+                // 2) Únicos / eventuales: INSCRIPCION, SERV_ESC, SEGURO, PRACTICAS, TITULACION, etc.
+                // Regla simple: vencen en ingreso (puedes moverlos luego por lógica)
+                for (int i = 0; i < cantidad; i++) {
+
+                    boolean pagado = i < pagosConcepto.size(); // si hay >= cantidad recibos, los marca pagados
+
+                    out.add(new PagoProyectadoRes(
+                            YearMonth.from(ingreso).toString(),
+                            ingreso,
+                            conceptoCodigo,
+                            monto,
+                            pagado ? "PAGADO" : "PENDIENTE"
+                    ));
+                }
+            }
+        }
+
+        // Orden por fecha
+        out.sort(Comparator
+                .comparing(PagoProyectadoRes::fechaVencimiento)
+                .thenComparing(PagoProyectadoRes::conceptoCodigo));
+
+        return out;
     }
 
 
