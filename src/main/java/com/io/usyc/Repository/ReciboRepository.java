@@ -74,4 +74,51 @@ public interface ReciboRepository extends JpaRepository<Recibo, Long> {
     """)
     List<Recibo> findRecibosDelDia(@Param("fecha") LocalDate fecha,
                                    @Param("plantelId") Integer plantelId);
+
+
+    @Query("""
+    select
+      count(r.id) as totalRecibos,
+      coalesce(sum(r.monto), 0) as totalMonto,
+      sum(case when r.canceladoEn is not null then 1 else 0 end) as totalCancelados,
+      coalesce(sum(case when r.canceladoEn is not null then r.monto else 0 end), 0) as totalMontoCancelado
+    from Recibo r
+    where r.fechaPago between :fechaInicio and :fechaFin
+      and (:plantelId is null or r.plantelId = :plantelId)
+""")
+    CorteResumenRow resumenCorteRango(@Param("fechaInicio") LocalDate fechaInicio,
+                                      @Param("fechaFin") LocalDate fechaFin,
+                                      @Param("plantelId") Integer plantelId);
+
+    @Query("""
+    select
+      r.tipoPago.id as tipoPagoId,
+      r.tipoPago.name as tipoPagoDesc,
+      count(r.id) as totalRecibos,
+      coalesce(sum(r.monto), 0) as totalMonto
+    from Recibo r
+    where r.fechaPago between :fechaInicio and :fechaFin
+      and r.canceladoEn is null
+      and (:plantelId is null or r.plantelId = :plantelId)
+    group by r.tipoPago.id, r.tipoPago.name
+    order by r.tipoPago.name
+""")
+    List<CorteTipoPagoRow> resumenPorTipoPagoRango(@Param("fechaInicio") LocalDate fechaInicio,
+                                                   @Param("fechaFin") LocalDate fechaFin,
+                                                   @Param("plantelId") Integer plantelId);
+
+    @Query("""
+    select r
+    from Recibo r
+    join fetch r.alumno a
+    join fetch r.estatus e
+    join fetch r.tipoPago tp
+    where r.fechaPago between :fechaInicio and :fechaFin
+      and (:plantelId is null or r.plantelId = :plantelId)
+    order by r.fechaPago asc, r.creadoEn asc
+""")
+    List<Recibo> findRecibosDelRango(@Param("fechaInicio") LocalDate fechaInicio,
+                                     @Param("fechaFin") LocalDate fechaFin,
+                                     @Param("plantelId") Integer plantelId);
+
 }

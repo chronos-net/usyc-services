@@ -1,6 +1,7 @@
 package com.io.usyc.Controller;
 
 import com.io.usyc.Dto.CorteCajaDiarioRes;
+import com.io.usyc.Dto.CorteCajaRangoRes;
 import com.io.usyc.Service.CorteCajaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,5 +32,20 @@ public class CorteCajaController {
     ) {
         return ResponseEntity.ok(service.generarCorteDiario(fecha, plantelId));
     }
+
+    @Operation(summary = "Corte de caja por rango", description = "Genera el corte de caja por rango de fechaPago. Puede filtrarse por plantel.")
+    @GetMapping("/rango")
+    public ResponseEntity<CorteCajaRangoRes> cortePorRango(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate fechaInicio,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate fechaFin,
+            @RequestParam(required = false) Integer plantelId
+    ) {
+        return ResponseEntity.ok(service.generarCorteRango(fechaInicio, fechaFin, plantelId));
+    }
+
 }
 

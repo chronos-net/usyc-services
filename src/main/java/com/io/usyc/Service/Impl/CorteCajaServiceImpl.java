@@ -88,4 +88,47 @@ public class CorteCajaServiceImpl implements CorteCajaService {
 
     private long nvlLong(Long v) { return v == null ? 0L : v; }
     private java.math.BigDecimal nvlMoney(java.math.BigDecimal v) { return v == null ? java.math.BigDecimal.ZERO : v; }
+
+
+    @Override
+    public CorteCajaRangoRes generarCorteRango(LocalDate fechaInicio, LocalDate fechaFin, Integer plantelId) {
+
+        if (fechaInicio == null && fechaFin == null) {
+            fechaInicio = LocalDate.now();
+            fechaFin = fechaInicio;
+        } else if (fechaInicio != null && fechaFin == null) {
+            fechaFin = fechaInicio;
+        } else if (fechaInicio == null) {
+            fechaInicio = fechaFin;
+        }
+
+        if (fechaInicio.isAfter(fechaFin)) {
+            LocalDate tmp = fechaInicio;
+            fechaInicio = fechaFin;
+            fechaFin = tmp;
+        }
+
+        CorteResumenRow resumenRow = reciboRepo.resumenCorteRango(fechaInicio, fechaFin, plantelId);
+
+        ResumenCorteDto resumen = new ResumenCorteDto(
+                nvlLong(resumenRow.getTotalRecibos()),
+                nvlMoney(resumenRow.getTotalMonto()),
+                nvlLong(resumenRow.getTotalCancelados()),
+                nvlMoney(resumenRow.getTotalMontoCancelado())
+        );
+
+        List<ResumenPorTipoPagoDto> porTipoPago = reciboRepo.resumenPorTipoPagoRango(fechaInicio, fechaFin, plantelId)
+                .stream()
+                .map(this::mapTipoPago)
+                .toList();
+
+        List<ReciboCorteItemDto> recibos = reciboRepo.findRecibosDelRango(fechaInicio, fechaFin, plantelId)
+                .stream()
+                .map(this::mapRecibo)
+                .toList();
+
+        return new CorteCajaRangoRes(fechaInicio, fechaFin, plantelId, resumen, porTipoPago, recibos);
+    }
+
+
 }
