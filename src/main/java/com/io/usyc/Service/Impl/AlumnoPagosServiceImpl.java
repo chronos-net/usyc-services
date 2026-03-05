@@ -119,7 +119,7 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                 totalProyectado,
                 saldoPendiente,
                 pagosReales,
-                proyeccion
+                proyeccion,alumno.getPlantel().getName()
         );
     }
     private boolean esConceptoMensual(String conceptoCodigo) {

@@ -15,5 +15,6 @@ public record AlumnoPagosResumenRes(
         BigDecimal totalProyectado,
         BigDecimal saldoPendiente,
         List<ReciboRes> pagosReales,
-        List<PagoProyectadoRes> proyeccion
+        List<PagoProyectadoRes> proyeccion,
+        String plantel
 ) {}

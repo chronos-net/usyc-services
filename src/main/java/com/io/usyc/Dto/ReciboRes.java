@@ -20,6 +20,7 @@ public record ReciboRes(
         String tipoPagoCode,
         String tipoPagoName,
         boolean cancelado,
-        String qrPayload
+        String qrPayload,
+        String plantel
 ) {}
 

@@ -37,6 +37,7 @@ public class ReciboServiceImpl implements ReciboService {
     private final QrCodeService qrCodeService;
 
     @Autowired private AppUserRepository appUserRepository;
+    @Autowired private CatPlantelRepository catPlantelRepository;
 
     public ReciboServiceImpl(
             ReciboRepository reciboRepo,
@@ -267,7 +268,7 @@ public class ReciboServiceImpl implements ReciboService {
                 tp != null ? tp.getCode() : null,
                 tp != null ? tp.getName() : null,
                 cancelado,
-                r.getQrPayload()
+                r.getQrPayload(),alumno.getPlantel().getName()
         );
     }
 
