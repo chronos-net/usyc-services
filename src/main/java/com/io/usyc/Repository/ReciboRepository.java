@@ -76,50 +76,48 @@ public interface ReciboRepository extends JpaRepository<Recibo, Long> {
     List<Recibo> findRecibosDelDia(@Param("fecha") LocalDate fecha,
                                    @Param("plantelId") Integer plantelId);
 
-    @Query("""
-        select
-          count(r.id) as totalRecibos,
-          coalesce(sum(r.monto), 0) as totalMonto,
-          sum(case when r.canceladoEn is not null then 1 else 0 end) as totalCancelados,
-          coalesce(sum(case when r.canceladoEn is not null then r.monto else 0 end), 0) as totalMontoCancelado
-        from Recibo r
-        where r.fechaPago >= :fechaInicio
-          and r.fechaPago <= :fechaFin
-          and (:plantelId is null or r.plantelId = :plantelId)
-    """)
+    @Query(value = """
+    select
+      count(r.recibo_id) as totalRecibos,
+      coalesce(sum(r.monto), 0) as totalMonto,
+      sum(case when r.cancelado_en is not null then 1 else 0 end) as totalCancelados,
+      coalesce(sum(case when r.cancelado_en is not null then r.monto else 0 end), 0) as totalMontoCancelado
+    from recibo r
+    where r.fecha_pago >= cast(:fechaInicio as date)
+      and r.fecha_pago <= cast(:fechaFin as date)
+      and (:plantelId is null or r.plantel_id = :plantelId)
+    """, nativeQuery = true)
     CorteResumenRow resumenCorteRango(@Param("fechaInicio") LocalDate fechaInicio,
                                       @Param("fechaFin") LocalDate fechaFin,
                                       @Param("plantelId") Integer plantelId);
 
-    @Query("""
-        select
-          r.tipoPago.id as tipoPagoId,
-          r.tipoPago.name as tipoPagoDesc,
-          count(r.id) as totalRecibos,
-          coalesce(sum(r.monto), 0) as totalMonto
-        from Recibo r
-        where r.fechaPago >= :fechaInicio
-          and r.fechaPago <= :fechaFin
-          and r.canceladoEn is null
-          and (:plantelId is null or r.plantelId = :plantelId)
-        group by r.tipoPago.id, r.tipoPago.name
-        order by r.tipoPago.name
-    """)
+    @Query(value = """
+    select
+      r.tipo_pago_id as tipoPagoId,
+      tp.name as tipoPagoDesc,
+      count(r.recibo_id) as totalRecibos,
+      coalesce(sum(r.monto), 0) as totalMonto
+    from recibo r
+    join cat_tipo_pago tp on tp.tipo_pago_id = r.tipo_pago_id
+    where r.fecha_pago >= cast(:fechaInicio as date)
+      and r.fecha_pago <= cast(:fechaFin as date)
+      and r.cancelado_en is null
+      and (:plantelId is null or r.plantel_id = :plantelId)
+    group by r.tipo_pago_id, tp.name
+    order by tp.name
+    """, nativeQuery = true)
     List<CorteTipoPagoRow> resumenPorTipoPagoRango(@Param("fechaInicio") LocalDate fechaInicio,
                                                    @Param("fechaFin") LocalDate fechaFin,
                                                    @Param("plantelId") Integer plantelId);
 
-    @Query("""
-        select r
-        from Recibo r
-        join fetch r.alumno a
-        join fetch r.estatus e
-        join fetch r.tipoPago tp
-        where r.fechaPago >= :fechaInicio
-          and r.fechaPago <= :fechaFin
-          and (:plantelId is null or r.plantelId = :plantelId)
-        order by r.fechaPago asc, r.creadoEn asc
-    """)
+    @Query(value = """
+    select r.*
+    from recibo r
+    where r.fecha_pago >= cast(:fechaInicio as date)
+      and r.fecha_pago <= cast(:fechaFin as date)
+      and (:plantelId is null or r.plantel_id = :plantelId)
+    order by r.fecha_pago asc, r.creado_en asc
+    """, nativeQuery = true)
     List<Recibo> findRecibosDelRango(@Param("fechaInicio") LocalDate fechaInicio,
                                      @Param("fechaFin") LocalDate fechaFin,
                                      @Param("plantelId") Integer plantelId);
