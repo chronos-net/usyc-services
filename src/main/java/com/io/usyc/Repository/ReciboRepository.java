@@ -83,8 +83,8 @@ public interface ReciboRepository extends JpaRepository<Recibo, Long> {
       sum(case when r.cancelado_en is not null then 1 else 0 end) as totalCancelados,
       coalesce(sum(case when r.cancelado_en is not null then r.monto else 0 end), 0) as totalMontoCancelado
     from recibo r
-    where r.fecha_pago >= cast(:fechaInicio as date)
-      and r.fecha_pago <= cast(:fechaFin as date)
+    where r.fecha_emision >= cast(:fechaInicio as date)
+      and r.fecha_emision <= cast(:fechaFin as date)
       and (:plantelId is null or r.plantel_id = :plantelId)
     """, nativeQuery = true)
     CorteResumenRow resumenCorteRango(@Param("fechaInicio") LocalDate fechaInicio,
@@ -99,8 +99,8 @@ public interface ReciboRepository extends JpaRepository<Recibo, Long> {
       coalesce(sum(r.monto), 0) as totalMonto
     from recibo r
     join cat_tipo_pago tp on tp.tipo_pago_id = r.tipo_pago_id
-    where r.fecha_pago >= cast(:fechaInicio as date)
-      and r.fecha_pago <= cast(:fechaFin as date)
+    where r.fecha_emision >= cast(:fechaInicio as date)
+      and r.fecha_emision <= cast(:fechaFin as date)
       and r.cancelado_en is null
       and (:plantelId is null or r.plantel_id = :plantelId)
     group by r.tipo_pago_id, tp.name
@@ -113,10 +113,10 @@ public interface ReciboRepository extends JpaRepository<Recibo, Long> {
     @Query(value = """
     select r.*
     from recibo r
-    where r.fecha_pago >= cast(:fechaInicio as date)
-      and r.fecha_pago <= cast(:fechaFin as date)
+    where r.fecha_emision >= cast(:fechaInicio as date)
+      and r.fecha_emision <= cast(:fechaFin as date)
       and (:plantelId is null or r.plantel_id = :plantelId)
-    order by r.fecha_pago asc, r.creado_en asc
+    order by r.fecha_emision asc, r.creado_en asc
     """, nativeQuery = true)
     List<Recibo> findRecibosDelRango(@Param("fechaInicio") LocalDate fechaInicio,
                                      @Param("fechaFin") LocalDate fechaFin,
