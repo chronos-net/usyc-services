@@ -149,6 +149,7 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
         for (CarreraConceptoConfig cfg : configs) {
 
             String conceptoCodigo = cfg.getConcepto().getCodigo().trim().toUpperCase();
+            String conceptoDescripcion = cfg.getConcepto().getDescripcion().trim().toUpperCase();
             BigDecimal monto = cfg.getMonto();
             int cantidad = cfg.getCantidad() != null ? cfg.getCantidad() : 0;
 
@@ -175,7 +176,7 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                     out.add(new PagoProyectadoRes(
                             periodo.toString(),
                             fechaVenc,
-                            conceptoCodigo,
+                            conceptoCodigo,conceptoDescripcion,
                             monto,
                             pagado ? "PAGADO" : "PENDIENTE"
                     ));
@@ -191,7 +192,7 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                     out.add(new PagoProyectadoRes(
                             YearMonth.from(ingreso).toString(),
                             ingreso,
-                            conceptoCodigo,
+                            conceptoCodigo,conceptoDescripcion,
                             monto,
                             pagado ? "PAGADO" : "PENDIENTE"
                     ));
@@ -307,7 +308,7 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
             out.add(new PagoProyectadoRes(
                     current.toString(), // "2025-12"
                     venc,
-                    "MENSUALIDAD",
+                    "MENSUALIDAD","MENSUALIDAD",
                     montoMensual,
                     estado
             ));

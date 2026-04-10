@@ -7,6 +7,7 @@ public record PagoProyectadoRes(
         String periodo,          // YYYY-MM (ej: 2025-12)
         LocalDate fechaVencimiento,
         String conceptoCodigo,   // MENSUALIDAD / INSCRIPCION
+        String descripcion,   // MENSUALIDAD / INSCRIPCION
         BigDecimal monto,
         String estado            // PAGADO / PENDIENTE
 ) {}
