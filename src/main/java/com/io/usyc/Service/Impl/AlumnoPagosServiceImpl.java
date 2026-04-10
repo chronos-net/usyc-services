@@ -149,7 +149,7 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
         for (CarreraConceptoConfig cfg : configs) {
 
             String conceptoCodigo = cfg.getConcepto().getCodigo().trim().toUpperCase();
-            String conceptoDescripcion = cfg.getConcepto().getDescripcion().trim().toUpperCase();
+            String conceptoDescripcion = cfg.getConcepto().getNombre().trim().toUpperCase();
             BigDecimal monto = cfg.getMonto();
             int cantidad = cfg.getCantidad() != null ? cfg.getCantidad() : 0;
 
