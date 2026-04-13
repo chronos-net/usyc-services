@@ -268,7 +268,7 @@ public class ReciboServiceImpl implements ReciboService {
                 tp != null ? tp.getCode() : null,
                 tp != null ? tp.getName() : null,
                 cancelado,
-                r.getQrPayload(),alumno.getPlantel().getName()
+                r.getQrPayload(),alumno.getPlantel().getName(),r.getComentario()
         );
     }
 

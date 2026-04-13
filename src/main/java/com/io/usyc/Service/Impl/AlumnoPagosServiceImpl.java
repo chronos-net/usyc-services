@@ -250,7 +250,7 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                 tp != null ? tp.getCode() : null,
                 tp != null ? tp.getName() : null,
                 cancelado,
-                r.getQrPayload(),alumno.getPlantel().getName()
+                r.getQrPayload(),alumno.getPlantel().getName(),r.getComentario()
         );
     }
     private Integer currentUserPlantelIdOrNull() {
@@ -356,7 +356,8 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                 tipoPagoCodigo,
                 tipoPagoNombre,
                 cancelado,
-                r.getQrPayload(),a.getPlantel().getName()
+                r.getQrPayload(),a.getPlantel().getName(),
+                r.getComentario()
         );
     }
 
