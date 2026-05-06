@@ -132,6 +132,8 @@ public class UserAdminServiceImpl implements UserAdminService {
                         .collect(Collectors.toSet());
 
         Integer plantelId = (u.getPlantel() != null) ? u.getPlantel().getId() : null;
+        String plantelName = (u.getPlantel() != null) ? u.getPlantel().getName() : null;
+        String plantelCode = (u.getPlantel() != null) ? u.getPlantel().getCode() : null;
 
         return new UserListItemRes(
                 u.getUserId(),
@@ -141,6 +143,8 @@ public class UserAdminServiceImpl implements UserAdminService {
                 u.isActive(),
                 u.getAlumnoId(),
                 plantelId,
+                plantelName,
+                plantelCode,
                 roles,
                 u.getLastLoginAt(),
                 u.getCreatedAt()
