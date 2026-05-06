@@ -11,10 +11,10 @@ import java.util.Optional;
 public interface AlumnoRepository extends JpaRepository<Alumno, String> {
     boolean existsByMatricula(String matricula);
 
-    @EntityGraph(attributePaths = {"escolaridad", "carrera"})
+    @EntityGraph(attributePaths = {"escolaridad", "carrera", "plantel"})
     Page<Alumno> findAll(Pageable pageable);
 
-    @EntityGraph(attributePaths = {"escolaridad", "carrera"})
+    @EntityGraph(attributePaths = {"escolaridad", "carrera", "plantel"})
     Page<Alumno> findByPlantel_Id(Integer plantelId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"escolaridad", "carrera", "plantel"})
