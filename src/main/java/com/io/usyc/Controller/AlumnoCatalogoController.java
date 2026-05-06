@@ -14,7 +14,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/alumnos")
@@ -45,10 +48,23 @@ public class AlumnoCatalogoController {
     @GetMapping
     public ResponseEntity<Page<AlumnoListItemRes>> listar(
             @ParameterObject Pageable pageable,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Integer escolaridadId,
+            @RequestParam(required = false) Integer plantelId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaIngresoDesde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaIngresoHasta,
             @AuthenticationPrincipal Object principal
     ) {
         SecurityUserDetails sud = (SecurityUserDetails) principal;
-        return ResponseEntity.ok(alumnoCatalogoService.listar(pageable, sud));
+        return ResponseEntity.ok(alumnoCatalogoService.listar(
+                pageable,
+                sud,
+                q,
+                escolaridadId,
+                plantelId,
+                fechaIngresoDesde,
+                fechaIngresoHasta
+        ));
     }
 
 
