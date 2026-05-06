@@ -14,6 +14,8 @@ public record UserListItemRes(
         @Schema(example = "true") boolean active,
         @Schema(example = "123456789") String alumnoId,
         @Schema(example = "3") Integer plantelId,
+        @Schema(example = "Campus Centro") String plantelName,
+        @Schema(example = "CENTRO") String plantelCode,
         Set<String> roles,
         LocalDateTime lastLoginAt,
         LocalDateTime createdAt

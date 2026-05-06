@@ -20,6 +20,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
+
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -51,6 +53,10 @@ public class AuthController {
 
         // 2) autentica credenciales
         authManager.authenticate(new UsernamePasswordAuthenticationToken(username, req.password()));
+
+        // Último acceso: persiste para listados admin (GET /api/admin/users).
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepo.save(user);
 
         // 3) genera JWT con roles
         AuthUserRes userRes = toUserRes(user);
