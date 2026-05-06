@@ -14,5 +14,9 @@ public record AlumnoListItemRes(
         String escolaridadNombre,
 
         String carreraId,
-        String carreraNombre
+        String carreraNombre,
+
+        Integer plantelId,
+        String plantelNombre,
+        String plantelCode
 ) {}
