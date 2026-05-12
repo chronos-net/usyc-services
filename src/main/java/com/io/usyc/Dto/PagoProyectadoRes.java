@@ -9,5 +9,10 @@ public record PagoProyectadoRes(
         String conceptoCodigo,   // MENSUALIDAD / INSCRIPCION
         String descripcion,   // MENSUALIDAD / INSCRIPCION
         BigDecimal monto,
-        String estado            // PAGADO / PENDIENTE
+        String estado,            // PAGADO / PENDIENTE
+        // Recibo que justifica PAGADO (opcional)
+        Long reciboId,
+        String folio,
+        LocalDate fechaPago,
+        LocalDate fechaEmision
 ) {}

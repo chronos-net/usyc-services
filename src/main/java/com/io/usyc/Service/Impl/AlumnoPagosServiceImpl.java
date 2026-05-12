@@ -129,12 +129,65 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                 || conceptoCodigo.equalsIgnoreCase("MENSUALIDAD");
     }
 
-    private boolean existePagoEnPeriodo(List<Recibo> pagosConcepto, YearMonth periodo) {
-        return pagosConcepto.stream().anyMatch(r -> {
-            var fecha = (r.getFechaPago() != null) ? r.getFechaPago() : r.getFechaEmision();
-            if (fecha == null) return false;
-            return YearMonth.from(fecha).equals(periodo);
-        });
+    /** Fecha de referencia del recibo: preferir fechaPago, si no fechaEmision. */
+    private static LocalDate fechaReferenciaRecibo(Recibo r) {
+        if (r.getFechaPago() != null) return r.getFechaPago();
+        return r.getFechaEmision();
+    }
+
+    private static final Comparator<Recibo> POR_FECHA_RECIBO_ID = Comparator
+            .comparing(AlumnoPagosServiceImpl::fechaReferenciaRecibo, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(Recibo::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+
+    private static boolean existePagoEnPeriodo(List<Recibo> pagosConcepto, YearMonth periodo) {
+        return findReciboEnPeriodo(pagosConcepto, periodo).isPresent();
+    }
+
+    /**
+     * Recibo cuyo YearMonth(fechaPago o fechaEmision) coincide con el periodo proyectado.
+     * Si hay varios, elige el primero en orden estable (fecha, id).
+     */
+    private static Optional<Recibo> findReciboEnPeriodo(List<Recibo> pagosConcepto, YearMonth periodo) {
+        return pagosConcepto.stream()
+                .filter(r -> {
+                    LocalDate fecha = fechaReferenciaRecibo(r);
+                    return fecha != null && YearMonth.from(fecha).equals(periodo);
+                })
+                .min(POR_FECHA_RECIBO_ID);
+    }
+
+    private static void appendPagoProyectado(
+            List<PagoProyectadoRes> out,
+            String periodo,
+            LocalDate fechaVenc,
+            String conceptoCodigo,
+            String conceptoDescripcion,
+            BigDecimal monto,
+            boolean pagado,
+            Recibo reciboAsociado
+    ) {
+        Long rid = null;
+        String folio = null;
+        LocalDate fp = null;
+        LocalDate fe = null;
+        if (reciboAsociado != null) {
+            rid = reciboAsociado.getId();
+            folio = reciboAsociado.getFolio();
+            fp = reciboAsociado.getFechaPago();
+            fe = reciboAsociado.getFechaEmision();
+        }
+        out.add(new PagoProyectadoRes(
+                periodo,
+                fechaVenc,
+                conceptoCodigo,
+                conceptoDescripcion,
+                monto,
+                pagado ? "PAGADO" : "PENDIENTE",
+                rid,
+                folio,
+                fp,
+                fe
+        ));
     }
 
     private List<PagoProyectadoRes> construirProyeccionDesdeConfigs(
@@ -172,30 +225,43 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                     if (fechaVenc.isAfter(termino)) break;
 
                     boolean pagado = existePagoEnPeriodo(pagosConcepto, periodo);
+                    Recibo reciboAsociado = pagado
+                            ? findReciboEnPeriodo(pagosConcepto, periodo).orElse(null)
+                            : null;
 
-                    out.add(new PagoProyectadoRes(
+                    appendPagoProyectado(
+                            out,
                             periodo.toString(),
                             fechaVenc,
-                            conceptoCodigo,conceptoDescripcion,
+                            conceptoCodigo,
+                            conceptoDescripcion,
                             monto,
-                            pagado ? "PAGADO" : "PENDIENTE"
-                    ));
+                            pagado,
+                            reciboAsociado
+                    );
                 }
 
             } else {
                 // 2) Únicos / eventuales: INSCRIPCION, SERV_ESC, SEGURO, PRACTICAS, TITULACION, etc.
                 // Regla simple: vencen en ingreso (puedes moverlos luego por lógica)
+                List<Recibo> pagosOrdenados = new ArrayList<>(pagosConcepto);
+                pagosOrdenados.sort(POR_FECHA_RECIBO_ID);
+
                 for (int i = 0; i < cantidad; i++) {
 
-                    boolean pagado = i < pagosConcepto.size(); // si hay >= cantidad recibos, los marca pagados
+                    boolean pagado = i < pagosOrdenados.size();
+                    Recibo reciboAsociado = pagado ? pagosOrdenados.get(i) : null;
 
-                    out.add(new PagoProyectadoRes(
+                    appendPagoProyectado(
+                            out,
                             YearMonth.from(ingreso).toString(),
                             ingreso,
-                            conceptoCodigo,conceptoDescripcion,
+                            conceptoCodigo,
+                            conceptoDescripcion,
                             monto,
-                            pagado ? "PAGADO" : "PENDIENTE"
-                    ));
+                            pagado,
+                            reciboAsociado
+                    );
                 }
             }
         }
@@ -310,7 +376,11 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                     venc,
                     "MENSUALIDAD","MENSUALIDAD",
                     montoMensual,
-                    estado
+                    estado,
+                    null,
+                    null,
+                    null,
+                    null
             ));
 
             current = current.plusMonths(1);

@@ -8,10 +8,12 @@ import com.io.usyc.Repository.*;
 import com.io.usyc.Service.QrCodeService;
 import com.io.usyc.Service.ReciboService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -74,6 +76,18 @@ public class ReciboServiceImpl implements ReciboService {
         String concepto = req.concepto().trim().toUpperCase();
         LocalDate hoy = LocalDate.now();
         LocalDate fechaPago = (req.fechaPago() == null ? hoy : req.fechaPago());
+
+        if (reciboRepo.existsActivoAlumnoConceptoYearMonth(
+                req.alumnoId().trim(),
+                concepto,
+                fechaPago.getYear(),
+                fechaPago.getMonthValue()
+        )) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Este periodo ya cuenta con un recibo registrado."
+            );
+        }
 
         //BigDecimal monto = resolverMonto(concepto, alumno.getCarrera(), req.montoManual());
 

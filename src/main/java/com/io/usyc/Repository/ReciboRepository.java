@@ -121,4 +121,22 @@ public interface ReciboRepository extends JpaRepository<Recibo, Long> {
     List<Recibo> findRecibosDelRango(@Param("fechaInicio") LocalDate fechaInicio,
                                      @Param("fechaFin") LocalDate fechaFin,
                                      @Param("plantelId") Integer plantelId);
+
+    /**
+     * Recibo no cancelado (cancelado_en nulo) para mismo alumno, concepto normalizado y mes natural de fecha_pago.
+     */
+    @Query("""
+            select case when count(r) > 0 then true else false end
+            from Recibo r
+            where r.alumno.id = :alumnoId
+              and upper(trim(r.concepto)) = :conceptoNorm
+              and year(r.fechaPago) = :year
+              and month(r.fechaPago) = :month
+              and r.canceladoEn is null
+              and r.fechaPago is not null
+            """)
+    boolean existsActivoAlumnoConceptoYearMonth(@Param("alumnoId") String alumnoId,
+                                                @Param("conceptoNorm") String conceptoNorm,
+                                                @Param("year") int year,
+                                                @Param("month") int month);
 }
