@@ -77,7 +77,33 @@ public class ReciboServiceImpl implements ReciboService {
         LocalDate hoy = LocalDate.now();
         LocalDate fechaPago = (req.fechaPago() == null ? hoy : req.fechaPago());
 
-        if (reciboRepo.existsActivoAlumnoConceptoYearMonth(
+        String periodoAplicado = normalizarPeriodoAplicadoOrNull(req.periodoAplicado());
+        Integer lineaAplicada = normalizarLineaAplicadaOrNull(req.lineaAplicada());
+
+        if (periodoAplicado != null && lineaAplicada != null) {
+            if (reciboRepo.existsActivoAlumnoConceptoPeriodoLinea(
+                    req.alumnoId().trim(),
+                    concepto,
+                    periodoAplicado,
+                    lineaAplicada
+            )) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Este periodo ya cuenta con un recibo registrado."
+                );
+            }
+        } else if (periodoAplicado != null) {
+            if (reciboRepo.existsActivoAlumnoConceptoPeriodoAplicado(
+                    req.alumnoId().trim(),
+                    concepto,
+                    periodoAplicado
+            )) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Este periodo ya cuenta con un recibo registrado."
+                );
+            }
+        } else if (reciboRepo.existsActivoAlumnoConceptoYearMonth(
                 req.alumnoId().trim(),
                 concepto,
                 fechaPago.getYear(),
@@ -130,6 +156,8 @@ public class ReciboServiceImpl implements ReciboService {
         r.setQrFileName(qrFileName);
 
         r.setComentario(req.comentario());
+        r.setPeriodoAplicado(periodoAplicado);
+        r.setLineaAplicada(lineaAplicada);
 
         r.setCreadoEn(LocalDateTime.now());
         r.setActualizadoEn(LocalDateTime.now());
@@ -282,8 +310,30 @@ public class ReciboServiceImpl implements ReciboService {
                 tp != null ? tp.getCode() : null,
                 tp != null ? tp.getName() : null,
                 cancelado,
-                r.getQrPayload(),alumno.getPlantel().getName(),r.getComentario()
+                r.getQrPayload(),alumno.getPlantel().getName(),r.getComentario(),
+                r.getPeriodoAplicado(),
+                r.getLineaAplicada()
         );
+    }
+
+    /** Normaliza periodoAplicado a YYYY-MM; null si vacío. Lanza si viene texto no vacío e inválido. */
+    private static String normalizarPeriodoAplicadoOrNull(String raw) {
+        if (raw == null) return null;
+        String t = raw.trim();
+        if (t.isEmpty()) return null;
+        if (!t.matches("\\d{4}-\\d{2}")) {
+            throw new IllegalArgumentException("periodoAplicado debe tener formato YYYY-MM.");
+        }
+        return t;
+    }
+
+    /** null si no viene; >=1 si viene. */
+    private static Integer normalizarLineaAplicadaOrNull(Integer raw) {
+        if (raw == null) return null;
+        if (raw < 1) {
+            throw new IllegalArgumentException("lineaAplicada debe ser >= 1.");
+        }
+        return raw;
     }
 
     private static void validarTexto(String v, String campo) {

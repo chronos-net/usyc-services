@@ -14,5 +14,9 @@ public record PagoProyectadoRes(
         Long reciboId,
         String folio,
         LocalDate fechaPago,
-        LocalDate fechaEmision
+        LocalDate fechaEmision,
+        /** periodo_aplicado del recibo vinculado; null si pendiente o legado. */
+        String periodoAplicado,
+        /** Ordinal dentro de concepto + periodo (1, 2, …). */
+        Integer lineaAplicada
 ) {}

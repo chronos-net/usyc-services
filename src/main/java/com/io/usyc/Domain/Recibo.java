@@ -77,6 +77,14 @@ public class Recibo {
     @Column(name = "folio_legacy", length = 40)
     private String folioLegacy;
 
+    /** Periodo de proyección liquidado (YYYY-MM). Opcional; null en recibos legados. */
+    @Column(name = "periodo_aplicado", length = 7)
+    private String periodoAplicado;
+
+    /** Ordinal de fila de proyección (mismo concepto + periodo). Opcional; null en legado. */
+    @Column(name = "linea_aplicada")
+    private Integer lineaAplicada;
+
 
     @PrePersist
     void prePersist() {

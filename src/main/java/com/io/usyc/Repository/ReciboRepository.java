@@ -139,4 +139,30 @@ public interface ReciboRepository extends JpaRepository<Recibo, Long> {
                                                 @Param("conceptoNorm") String conceptoNorm,
                                                 @Param("year") int year,
                                                 @Param("month") int month);
+
+    @Query("""
+            select case when count(r) > 0 then true else false end
+            from Recibo r
+            where r.alumno.id = :alumnoId
+              and upper(trim(r.concepto)) = :conceptoNorm
+              and r.periodoAplicado = :periodoAplicado
+              and r.canceladoEn is null
+            """)
+    boolean existsActivoAlumnoConceptoPeriodoAplicado(@Param("alumnoId") String alumnoId,
+                                                        @Param("conceptoNorm") String conceptoNorm,
+                                                        @Param("periodoAplicado") String periodoAplicado);
+
+    @Query("""
+            select case when count(r) > 0 then true else false end
+            from Recibo r
+            where r.alumno.id = :alumnoId
+              and upper(trim(r.concepto)) = :conceptoNorm
+              and r.periodoAplicado = :periodoAplicado
+              and r.lineaAplicada = :lineaAplicada
+              and r.canceladoEn is null
+            """)
+    boolean existsActivoAlumnoConceptoPeriodoLinea(@Param("alumnoId") String alumnoId,
+                                                   @Param("conceptoNorm") String conceptoNorm,
+                                                   @Param("periodoAplicado") String periodoAplicado,
+                                                   @Param("lineaAplicada") int lineaAplicada);
 }

@@ -139,21 +139,55 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
             .comparing(AlumnoPagosServiceImpl::fechaReferenciaRecibo, Comparator.nullsLast(Comparator.naturalOrder()))
             .thenComparing(Recibo::getId, Comparator.nullsLast(Comparator.naturalOrder()));
 
-    private static boolean existePagoEnPeriodo(List<Recibo> pagosConcepto, YearMonth periodo) {
-        return findReciboEnPeriodo(pagosConcepto, periodo).isPresent();
+    private static String trimPeriodoAplicado(Recibo r) {
+        if (r.getPeriodoAplicado() == null) return "";
+        return r.getPeriodoAplicado().trim();
     }
 
     /**
-     * Recibo cuyo YearMonth(fechaPago o fechaEmision) coincide con el periodo proyectado.
-     * Si hay varios, elige el primero en orden estable (fecha, id).
+     * Recibo que liquida la fila (periodo + ordinal de línea).
+     * 1) Coincidencia exacta por periodo_aplicado + linea_aplicada.
+     * 2) Fallback legado: recibos con linea_aplicada null, ordenados por fecha/id (n-ésimo del periodo).
      */
-    private static Optional<Recibo> findReciboEnPeriodo(List<Recibo> pagosConcepto, YearMonth periodo) {
-        return pagosConcepto.stream()
-                .filter(r -> {
-                    LocalDate fecha = fechaReferenciaRecibo(r);
-                    return fecha != null && YearMonth.from(fecha).equals(periodo);
-                })
+    private static Optional<Recibo> findReciboEnLinea(
+            List<Recibo> pagosConcepto,
+            String periodoStr,
+            int lineaProyeccion
+    ) {
+        if (lineaProyeccion < 1) return Optional.empty();
+
+        Optional<Recibo> exact = pagosConcepto.stream()
+                .filter(r -> periodoStr.equals(trimPeriodoAplicado(r)))
+                .filter(r -> r.getLineaAplicada() != null && r.getLineaAplicada() == lineaProyeccion)
                 .min(POR_FECHA_RECIBO_ID);
+        if (exact.isPresent()) {
+            return exact;
+        }
+
+        YearMonth ym;
+        try {
+            ym = YearMonth.parse(periodoStr);
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+
+        List<Recibo> legacy = pagosConcepto.stream()
+                .filter(r -> r.getLineaAplicada() == null)
+                .filter(r -> {
+                    String pa = trimPeriodoAplicado(r);
+                    if (!pa.isEmpty()) {
+                        return periodoStr.equals(pa);
+                    }
+                    LocalDate fecha = fechaReferenciaRecibo(r);
+                    return fecha != null && YearMonth.from(fecha).equals(ym);
+                })
+                .sorted(POR_FECHA_RECIBO_ID)
+                .toList();
+
+        if (lineaProyeccion >= 1 && lineaProyeccion <= legacy.size()) {
+            return Optional.of(legacy.get(lineaProyeccion - 1));
+        }
+        return Optional.empty();
     }
 
     private static void appendPagoProyectado(
@@ -164,17 +198,23 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
             String conceptoDescripcion,
             BigDecimal monto,
             boolean pagado,
+            int lineaAplicada,
             Recibo reciboAsociado
     ) {
         Long rid = null;
         String folio = null;
         LocalDate fp = null;
         LocalDate fe = null;
+        String pa = null;
         if (reciboAsociado != null) {
             rid = reciboAsociado.getId();
             folio = reciboAsociado.getFolio();
             fp = reciboAsociado.getFechaPago();
             fe = reciboAsociado.getFechaEmision();
+            if (reciboAsociado.getPeriodoAplicado() != null) {
+                String t = reciboAsociado.getPeriodoAplicado().trim();
+                pa = t.isEmpty() ? null : t;
+            }
         }
         out.add(new PagoProyectadoRes(
                 periodo,
@@ -186,7 +226,9 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                 rid,
                 folio,
                 fp,
-                fe
+                fe,
+                pa,
+                lineaAplicada
         ));
     }
 
@@ -224,10 +266,10 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                     // Si quieres cortar por termino (opcional):
                     if (fechaVenc.isAfter(termino)) break;
 
-                    boolean pagado = existePagoEnPeriodo(pagosConcepto, periodo);
-                    Recibo reciboAsociado = pagado
-                            ? findReciboEnPeriodo(pagosConcepto, periodo).orElse(null)
-                            : null;
+                    int lineaSlot = 1;
+                    Optional<Recibo> opt = findReciboEnLinea(pagosConcepto, periodo.toString(), lineaSlot);
+                    boolean pagado = opt.isPresent();
+                    Recibo reciboAsociado = opt.orElse(null);
 
                     appendPagoProyectado(
                             out,
@@ -237,6 +279,7 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                             conceptoDescripcion,
                             monto,
                             pagado,
+                            lineaSlot,
                             reciboAsociado
                     );
                 }
@@ -244,22 +287,23 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
             } else {
                 // 2) Únicos / eventuales: INSCRIPCION, SERV_ESC, SEGURO, PRACTICAS, TITULACION, etc.
                 // Regla simple: vencen en ingreso (puedes moverlos luego por lógica)
-                List<Recibo> pagosOrdenados = new ArrayList<>(pagosConcepto);
-                pagosOrdenados.sort(POR_FECHA_RECIBO_ID);
+                String periodoStr = YearMonth.from(ingreso).toString();
 
                 for (int i = 0; i < cantidad; i++) {
-
-                    boolean pagado = i < pagosOrdenados.size();
-                    Recibo reciboAsociado = pagado ? pagosOrdenados.get(i) : null;
+                    int lineaSlot = i + 1;
+                    Optional<Recibo> opt = findReciboEnLinea(pagosConcepto, periodoStr, lineaSlot);
+                    boolean pagado = opt.isPresent();
+                    Recibo reciboAsociado = opt.orElse(null);
 
                     appendPagoProyectado(
                             out,
-                            YearMonth.from(ingreso).toString(),
+                            periodoStr,
                             ingreso,
                             conceptoCodigo,
                             conceptoDescripcion,
                             monto,
                             pagado,
+                            lineaSlot,
                             reciboAsociado
                     );
                 }
@@ -269,7 +313,8 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
         // Orden por fecha
         out.sort(Comparator
                 .comparing(PagoProyectadoRes::fechaVencimiento)
-                .thenComparing(PagoProyectadoRes::conceptoCodigo));
+                .thenComparing(PagoProyectadoRes::conceptoCodigo)
+                .thenComparing(PagoProyectadoRes::lineaAplicada, Comparator.nullsLast(Comparator.naturalOrder())));
 
         return out;
     }
@@ -316,7 +361,9 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                 tp != null ? tp.getCode() : null,
                 tp != null ? tp.getName() : null,
                 cancelado,
-                r.getQrPayload(),alumno.getPlantel().getName(),r.getComentario()
+                r.getQrPayload(),alumno.getPlantel().getName(),r.getComentario(),
+                r.getPeriodoAplicado(),
+                r.getLineaAplicada()
         );
     }
     private Integer currentUserPlantelIdOrNull() {
@@ -380,7 +427,9 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                     null,
                     null,
                     null,
-                    null
+                    null,
+                    null,
+                    1
             ));
 
             current = current.plusMonths(1);
@@ -427,7 +476,9 @@ public class AlumnoPagosServiceImpl implements AlumnoPagosService {
                 tipoPagoNombre,
                 cancelado,
                 r.getQrPayload(),a.getPlantel().getName(),
-                r.getComentario()
+                r.getComentario(),
+                r.getPeriodoAplicado(),
+                r.getLineaAplicada()
         );
     }
 

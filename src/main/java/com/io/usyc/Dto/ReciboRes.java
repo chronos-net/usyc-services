@@ -22,6 +22,9 @@ public record ReciboRes(
         boolean cancelado,
         String qrPayload,
         String plantel,
-        String comentario
+        String comentario,
+        /** YYYY-MM desde recibo; null en legado. */
+        String periodoAplicado,
+        /** Ordinal de línea de proyección; null en legado. */
+        Integer lineaAplicada
 ) {}
-

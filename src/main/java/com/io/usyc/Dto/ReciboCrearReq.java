@@ -9,5 +9,9 @@ public record ReciboCrearReq(
         BigDecimal montoManual,
         LocalDate fechaPago,
         Integer tipoPagoId,
-        String comentario
+        String comentario,
+        /** Periodo de proyección liquidado (YYYY-MM). Opcional; null en pagos extra o legado. */
+        String periodoAplicado,
+        /** Ordinal de fila de proyección (>=1). Opcional; null en legado. */
+        Integer lineaAplicada
 ) {}
